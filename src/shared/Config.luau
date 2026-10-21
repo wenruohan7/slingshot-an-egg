@@ -7,7 +7,7 @@ local Config = {}
 -- Lane layout: the lane starts at X = 0 (right next to the hub) and runs toward +X.
 Config.Lane = {
 	StartX = 0,
-	ZoneLength = 120, -- studs per zone
+	ZoneLength = 250, -- studs per zone
 	Width = 200, -- studs, along Z
 }
 
@@ -52,7 +52,7 @@ Config.Charge = {
 -- Slingshot launch power, in studs flown at Power = 1.
 -- Each slingshot upgrade level multiplies it by LevelGrowth.
 Config.Slingshot = {
-	BasePower = 150,
+	BasePower = 312, -- at level 0, Poor lands in Shore and Perfect reaches Meadow
 	LevelGrowth = 1.12,
 	LaunchRange = 25, -- how close a player must stand to their pad to launch
 }

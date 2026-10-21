@@ -6,6 +6,7 @@
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Lane = require(Shared.Lane)
+local SlingshotModel = require(Shared.SlingshotModel)
 
 local MapBuilder = {}
 
@@ -40,7 +41,7 @@ local function sign(parent: BasePart, text: string, height: number)
 	gui.Size = UDim2.fromOffset(240, 60)
 	gui.StudsOffset = Vector3.new(0, height, 0)
 	gui.AlwaysOnTop = false
-	gui.MaxDistance = 400
+	gui.MaxDistance = 1200
 
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -58,28 +59,6 @@ end
 -- Position of plot / pad N along Z, centred on the hub.
 function MapBuilder.slotZ(index: number): number
 	return (index - (MapBuilder.PLOT_COUNT + 1) / 2) * PLOT_SPACING
-end
-
-local function buildSlingshot(parent: Instance, base: Vector3)
-	local model = Instance.new("Model")
-	model.Name = "Slingshot"
-	for _, side in { -1, 1 } do
-		part({
-			Name = "Post",
-			Size = Vector3.new(1.5, 8, 1.5),
-			Position = base + Vector3.new(0, 4, side * 4),
-			Color = WOOD_COLOR,
-			Parent = model,
-		})
-	end
-	part({
-		Name = "Band",
-		Size = Vector3.new(0.4, 0.4, 8),
-		Position = base + Vector3.new(0, 7, 0),
-		Color = Color3.fromRGB(230, 70, 90),
-		Parent = model,
-	})
-	model.Parent = parent
 end
 
 local function buildHub(map: Folder)
@@ -114,7 +93,9 @@ local function buildHub(map: Folder)
 			Color = PAD_COLOR,
 			Parent = hub,
 		})
-		buildSlingshot(pad, pad.Position + Vector3.new(4, 0.5, 0))
+		-- Slingshot at the lane-side edge of the pad, so the player stands behind it.
+		local padTop = pad.Position + Vector3.new(0, pad.Size.Y / 2, 0)
+		SlingshotModel.build(pad, CFrame.new(padTop + Vector3.new(3, 0, 0)))
 	end
 
 	local spawn = Instance.new("SpawnLocation")

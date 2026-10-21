@@ -1,6 +1,7 @@
 --!strict
 -- Launch controls: a big hold-to-launch button (also the E key on PC),
--- the bouncing charge meter, the stage word that pops up on release,
+-- the bouncing charge meter, the slingshot band pulling back and snapping,
+-- the stage word that pops up on release,
 -- a camera that follows the egg, and a banner naming the zone it lands in.
 
 local Players = game:GetService("Players")
@@ -12,6 +13,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Charge = require(Shared.Charge)
 local Remotes = require(Shared.Remotes)
+local SlingshotModel = require(Shared.SlingshotModel)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -22,6 +24,10 @@ local LAUNCH_KEY = Enum.KeyCode.E
 local charging = false
 local chargeStart = 0
 local flying = false
+
+-- Drives the band snap-back after release; tweening it springs the pouch forward.
+local pull = Instance.new("NumberValue")
+local snapTween: Tween? = nil
 
 --------------------------------------------------------------------------------
 -- UI
@@ -156,6 +162,22 @@ local function myPad(): BasePart?
 	return nil
 end
 
+local function mySlingshot(): Model?
+	local pad = myPad()
+	local slingshot = pad and pad:FindFirstChild("Slingshot")
+	if slingshot and slingshot:IsA("Model") then
+		return slingshot
+	end
+	return nil
+end
+
+pull.Changed:Connect(function(value)
+	local slingshot = mySlingshot()
+	if slingshot then
+		SlingshotModel.setPull(slingshot, value)
+	end
+end)
+
 local function nearPad(): boolean
 	local pad = myPad()
 	local character = player.Character
@@ -174,6 +196,10 @@ local function startCharge()
 	end
 	charging = true
 	chargeStart = os.clock()
+	if snapTween then
+		snapTween:Cancel()
+		snapTween = nil
+	end
 	meter.Visible = true
 	Remotes.ChargeStart:FireServer()
 	TweenService:Create(buttonScale, TweenInfo.new(0.15), { Scale = 0.88 }):Play()
@@ -185,6 +211,8 @@ local function releaseCharge()
 	end
 	charging = false
 	Remotes.ChargeRelease:FireServer()
+	snapTween = TweenService:Create(pull, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Value = 0 })
+	snapTween:Play()
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	task.delay(0.4, function()
 		if not charging then
@@ -223,6 +251,7 @@ RunService.RenderStepped:Connect(function()
 		local value = Charge.valueAt(os.clock() - chargeStart)
 		needle.Position = UDim2.fromScale(0.5, 1 - value)
 		needle.BackgroundColor3 = Charge.stageFor(value).Color
+		pull.Value = value
 	end
 end)
 

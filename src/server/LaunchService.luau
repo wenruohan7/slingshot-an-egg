@@ -11,6 +11,7 @@ local Config = require(Shared.Config)
 local Charge = require(Shared.Charge)
 local Lane = require(Shared.Lane)
 local Remotes = require(Shared.Remotes)
+local SlingshotModel = require(Shared.SlingshotModel)
 local PlotService = require(script.Parent.PlotService)
 
 local LaunchService = {}
@@ -75,8 +76,8 @@ end
 -- Moves the egg along an arc from `from` to `to`, then calls `onLanded`.
 local function flyEgg(egg: Part, from: Vector3, to: Vector3, onLanded: () -> ())
 	local distance = (to - from).Magnitude
-	local duration = 1.2 + distance / 300
-	local arcHeight = 20 + distance * 0.25
+	local duration = 1.2 + distance / 500
+	local arcHeight = 20 + distance * 0.15
 	local elapsed = 0
 
 	local connection: RBXScriptConnection
@@ -116,7 +117,10 @@ local function onChargeRelease(player: Player)
 	local distance = math.min(LaunchService.launchPower(player) * stage.Power, Lane.Length - 1)
 	local zoneIndex = Lane.zoneAt(distance)
 
-	local from = pad.Position + Vector3.new(4, 8, 0)
+	local slingshot = pad:FindFirstChild("Slingshot")
+	local from = if slingshot and slingshot:IsA("Model")
+		then SlingshotModel.pouchPosition(slingshot)
+		else pad.Position + Vector3.new(4, 8, 0)
 	local to = Vector3.new(Config.Lane.StartX + distance, GROUND_Y, pad.Position.Z)
 
 	inFlight[player] = true
