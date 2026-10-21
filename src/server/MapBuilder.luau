@@ -1,27 +1,21 @@
 --!strict
--- Builds the greybox map from code: the hub with 5 plots and launch pads,
+-- Builds the greybox map from code: the grassy hub with 5 plots,
 -- and the 8-zone lane. Everything goes into workspace.Map.
 -- Real art replaces these blocks later; keep part names stable so code can find them.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Lane = require(Shared.Lane)
-local SlingshotModel = require(Shared.SlingshotModel)
 
 local MapBuilder = {}
 
 MapBuilder.PLOT_COUNT = 5
 
--- Hub sits on the -X side of the lane.
-local HUB_CENTER = Vector3.new(-100, 0, 0)
-local HUB_SIZE = Vector3.new(180, 2, 200)
 local PLOT_X = -150
-local PAD_X = -25
 local PLOT_SPACING = 40
 
-local HUB_COLOR = Color3.fromRGB(255, 225, 235)
+local HUB_COLOR = Color3.fromRGB(110, 185, 90)
 local PLOT_COLOR = Color3.fromRGB(255, 245, 210)
-local PAD_COLOR = Color3.fromRGB(120, 190, 255)
 local WOOD_COLOR = Color3.fromRGB(170, 120, 80)
 
 local function part(props: { [string]: any }): Part
@@ -57,7 +51,7 @@ local function sign(parent: BasePart, text: string, height: number, size: UDim2,
 	gui.Parent = parent
 end
 
--- Position of plot / pad N along Z, centred on the hub.
+-- Position of plot N along Z, centred on the hub.
 function MapBuilder.slotZ(index: number): number
 	return (index - (MapBuilder.PLOT_COUNT + 1) / 2) * PLOT_SPACING
 end
@@ -67,11 +61,14 @@ local function buildHub(map: Folder)
 	hub.Name = "Hub"
 	hub.Parent = map
 
+	-- Hub floor sits on the -X side of the lane and runs right up to its start line.
+	local hubLength = Config.Hub.MaxX - Config.Hub.MinX
 	part({
 		Name = "Ground",
-		Size = HUB_SIZE,
-		Position = HUB_CENTER - Vector3.new(0, HUB_SIZE.Y / 2, 0),
+		Size = Vector3.new(hubLength, 2, Config.Hub.Width),
+		Position = Vector3.new(Config.Hub.MinX + hubLength / 2, -1, 0),
 		Color = HUB_COLOR,
+		Material = Enum.Material.Grass,
 		Parent = hub,
 	})
 
@@ -86,17 +83,6 @@ local function buildHub(map: Folder)
 			Parent = hub,
 		})
 		sign(plot, "Plot " .. i, 6, UDim2.fromOffset(240, 60), 400)
-
-		local pad = part({
-			Name = "LaunchPad" .. i,
-			Size = Vector3.new(14, 1, 14),
-			Position = Vector3.new(PAD_X, 0.5, z),
-			Color = PAD_COLOR,
-			Parent = hub,
-		})
-		-- Slingshot at the lane-side edge of the pad, so the player stands behind it.
-		local padTop = pad.Position + Vector3.new(0, pad.Size.Y / 2, 0)
-		SlingshotModel.build(pad, CFrame.new(padTop + Vector3.new(3, 0, 0)))
 	end
 
 	local spawn = Instance.new("SpawnLocation")

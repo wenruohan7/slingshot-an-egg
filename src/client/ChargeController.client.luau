@@ -1,6 +1,7 @@
 --!strict
--- Launch controls: a big hold-to-launch button (also the E key on PC),
--- the bouncing charge meter, the slingshot band pulling back and snapping,
+-- Launch controls: while the slingshot is in hand and you're in the hub, hold the
+-- big launch button (or click and hold, or the E key on PC). Also draws the
+-- bouncing charge meter, the slingshot band pulling back and snapping,
 -- the stage word that pops up on release,
 -- a camera that follows the egg, and a banner naming the zone it lands in.
 
@@ -12,6 +13,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
 local Config = require(Shared.Config)
 local Charge = require(Shared.Charge)
+local Lane = require(Shared.Lane)
 local Remotes = require(Shared.Remotes)
 local SlingshotModel = require(Shared.SlingshotModel)
 
@@ -151,47 +153,31 @@ end
 -- Charging
 --------------------------------------------------------------------------------
 
-local function myPad(): BasePart?
-	local index = player:GetAttribute("PlotIndex")
-	local map = workspace:FindFirstChild("Map")
-	local hub = map and map:FindFirstChild("Hub")
-	local pad = index and hub and hub:FindFirstChild("LaunchPad" .. tostring(index))
-	if pad and pad:IsA("BasePart") then
-		return pad
-	end
-	return nil
-end
-
-local function mySlingshot(): Model?
-	local pad = myPad()
-	local slingshot = pad and pad:FindFirstChild("Slingshot")
-	if slingshot and slingshot:IsA("Model") then
-		return slingshot
+-- The slingshot, if it's in the player's hand.
+local function heldSlingshot(): Tool?
+	local character = player.Character
+	local tool = character and character:FindFirstChild(SlingshotModel.NAME)
+	if tool and tool:IsA("Tool") then
+		return tool
 	end
 	return nil
 end
 
 pull.Changed:Connect(function(value)
-	local slingshot = mySlingshot()
+	local slingshot = heldSlingshot()
 	if slingshot then
 		SlingshotModel.setPull(slingshot, value)
 	end
 end)
 
-local function nearPad(): boolean
-	local pad = myPad()
+local function canLaunch(): boolean
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not (pad and root and root:IsA("BasePart")) then
-		return false
-	end
-	local offset = root.Position - pad.Position
-	-- A little under the server's range so the button never shows when the server would refuse.
-	return Vector3.new(offset.X, 0, offset.Z).Magnitude <= Config.Slingshot.LaunchRange - 2
+	return heldSlingshot() ~= nil and root ~= nil and root:IsA("BasePart") and Lane.isInHub(root.Position)
 end
 
 local function startCharge()
-	if charging or flying or not nearPad() then
+	if charging or flying or not canLaunch() then
 		return
 	end
 	charging = true
@@ -245,8 +231,25 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
+-- Clicking and holding with the slingshot in hand works too (and tapping on mobile).
+local hookedTool: Tool? = nil
+local function hookTool(tool: Tool?)
+	if tool == nil or tool == hookedTool then
+		return
+	end
+	hookedTool = tool
+	tool.Activated:Connect(startCharge)
+	tool.Deactivated:Connect(releaseCharge)
+end
+
 RunService.RenderStepped:Connect(function()
-	button.Visible = (charging or not flying) and nearPad()
+	hookTool(heldSlingshot())
+	local ready = canLaunch()
+	button.Visible = (charging or not flying) and ready
+	if charging and not ready then
+		-- Put away or walked off the hub mid-charge: let go.
+		releaseCharge()
+	end
 	if charging then
 		local value = Charge.valueAt(os.clock() - chargeStart)
 		needle.Position = UDim2.fromScale(0.5, 1 - value)

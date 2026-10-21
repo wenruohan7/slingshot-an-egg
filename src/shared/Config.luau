@@ -4,6 +4,15 @@
 
 local Config = {}
 
+-- Hub layout: the hub floor runs from MinX up to MaxX and is centred on Z = 0.
+-- MaxX meets the start of the lane, so there is no gap to fall through.
+-- Players launch from anywhere on the hub floor.
+Config.Hub = {
+	MinX = -190,
+	MaxX = 0,
+	Width = 200, -- studs, along Z (same as the lane)
+}
+
 -- Lane layout: the lane starts at X = 0 (right next to the hub) and runs toward +X.
 Config.Lane = {
 	StartX = 0,
@@ -54,7 +63,6 @@ Config.Charge = {
 Config.Slingshot = {
 	BasePower = 320, -- level 0: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 	LevelGrowth = 1.12,
-	LaunchRange = 25, -- how close a player must stand to their pad to launch
 }
 
 return Config

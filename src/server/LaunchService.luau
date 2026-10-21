@@ -1,8 +1,9 @@
 --!strict
 -- Handles the launch: the client says when the button went down and up,
 -- and the server works out the charge stage from its own timing, so a
--- client can't just claim "Perfect". Then it flies the egg down the lane
--- and reports which zone it landed in.
+-- client can't just claim "Perfect". Then it flies the egg from the player's
+-- slingshot down the lane and reports which zone it landed in.
+-- Players can launch from anywhere on the hub floor while holding the slingshot.
 
 local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -12,39 +13,26 @@ local Charge = require(Shared.Charge)
 local Lane = require(Shared.Lane)
 local Remotes = require(Shared.Remotes)
 local SlingshotModel = require(Shared.SlingshotModel)
-local PlotService = require(script.Parent.PlotService)
 
 local LaunchService = {}
 
 local GROUND_Y = 2 -- egg rests on the lane surface (y = 0) with its centre 2 studs up
 local EGG_COLOR = Color3.fromRGB(255, 250, 235)
 local EGG_LIFETIME = 4 -- seconds the egg sits after landing (hatching comes in step 3)
+local LANE_EDGE_MARGIN = 10 -- keep landings this far inside the lane's sides
 
 local chargeStarted: { [Player]: number } = {}
 local inFlight: { [Player]: boolean } = {}
 
-local function launchPad(player: Player): BasePart?
-	local index = PlotService.getPlotIndex(player)
-	if not index then
-		return nil
-	end
-	local map = workspace:FindFirstChild("Map")
-	local hub = map and map:FindFirstChild("Hub")
-	local pad = hub and hub:FindFirstChild("LaunchPad" .. index)
-	if pad and pad:IsA("BasePart") then
-		return pad
+-- The player's root part, if they are holding the slingshot and standing in the hub.
+local function launchingRoot(player: Player): BasePart?
+	local character = player.Character
+	local tool = character and character:FindFirstChild(SlingshotModel.NAME)
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if tool and tool:IsA("Tool") and root and root:IsA("BasePart") and Lane.isInHub(root.Position) then
+		return root
 	end
 	return nil
-end
-
-local function isNearPad(player: Player, pad: BasePart): boolean
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not (root and root:IsA("BasePart")) then
-		return false
-	end
-	local offset = root.Position - pad.Position
-	return Vector3.new(offset.X, 0, offset.Z).Magnitude <= Config.Slingshot.LaunchRange
 end
 
 function LaunchService.launchPower(player: Player): number
@@ -113,8 +101,8 @@ local function onChargeRelease(player: Player)
 		return
 	end
 
-	local pad = launchPad(player)
-	if not pad or not isNearPad(player, pad) then
+	local root = launchingRoot(player)
+	if not root then
 		return
 	end
 
@@ -122,11 +110,13 @@ local function onChargeRelease(player: Player)
 	local distance = math.min(LaunchService.launchPower(player) * stage.Power, Lane.Length - 1)
 	local zoneIndex = Lane.zoneAt(distance)
 
-	local slingshot = pad:FindFirstChild("Slingshot")
-	local from = if slingshot and slingshot:IsA("Model")
-		then SlingshotModel.pouchPosition(slingshot)
-		else pad.Position + Vector3.new(4, 8, 0)
-	local to = Vector3.new(Config.Lane.StartX + distance, GROUND_Y, pad.Position.Z)
+	-- Launch from the slingshot's pouch, and land in line with the player.
+	local character = root.Parent :: Instance
+	local tool = character:FindFirstChild(SlingshotModel.NAME)
+	local pouch = tool and tool:FindFirstChild("Pouch")
+	local from = if pouch and pouch:IsA("BasePart") then pouch.Position else root.Position + Vector3.new(0, 3, 0)
+	local laneHalf = Config.Lane.Width / 2 - LANE_EDGE_MARGIN
+	local to = Vector3.new(Config.Lane.StartX + distance, GROUND_Y, math.clamp(root.Position.Z, -laneHalf, laneHalf))
 
 	inFlight[player] = true
 	local egg = makeEgg(from)
