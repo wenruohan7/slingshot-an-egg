@@ -21,17 +21,21 @@ Set the place's **Max Players** to 5 (Game Settings, then Places), to match the 
 
 | Folder | Goes to | What's in it |
 | --- | --- | --- |
-| `src/shared` | ReplicatedStorage.Shared | `Config` (all tuning numbers), charge meter math, lane geometry, network events |
-| `src/server` | ServerScriptService.Server | Map builder, plot assignment, launching |
-| `src/client` | StarterPlayerScripts.Client | Launch button, charge meter, camera and banners |
+| `src/shared` | ReplicatedStorage.Shared | `Config` (all tuning numbers), `Pets` (the 56 pets), `Economy` (prices), charge meter math, lane geometry, slingshot and pet models, network events |
+| `src/server` | ServerScriptService.Server | Map builder, plots and pedestals, launching, hatching, coins and shops, saving |
+| `src/client` | StarterPlayerScripts.Client | Launch button and meter, hatch reveal, coin counter and notices |
 
-To change zones, drop rates, charge stages or launch power, edit `src/shared/Config.luau`.
+To change zones, drop rates, pet earnings, prices or launch power, edit `src/shared/Config.luau`.
+
+## Saving in Studio
+
+Progress is saved with DataStores. To test saving in Studio, turn on **Game Settings > Security > Enable Studio Access to API Services** (the place must be published). Without it the game still runs, it just starts fresh each time.
 
 ## Build progress
 
-- [x] 1. Greybox map: hub, 5 plots, launch pads, 8-zone lane (built from code)
-- [x] 2. Charge meter with 6 stages, launch, landing zone
-- [ ] 3. Hatching with the drop rates, pets on pedestals, coins
-- [ ] 4. Saving player data
-- [ ] 5. Upgrade stands, pedestal buying, rebirth
-- [ ] 6. Animations, effects and real art
+- [x] 1. Greybox map: hub, 5 plots, upgrade stands, 8-zone lane (built from code)
+- [x] 2. Slingshot item, charge meter with 6 stages, launch, landing zone
+- [x] 3. Hatching with the drop rates and mutations, pets on pedestals, coins
+- [x] 4. Saving player data, offline coins
+- [x] 5. Upgrade stands, pedestal buying, rebirth
+- [ ] 6. Animations, effects and real art (first pass done: hatch, beam, confetti, coin pops, pet bounce)
