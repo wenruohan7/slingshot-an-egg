@@ -69,7 +69,12 @@ local function makeEgg(position: Vector3): Part
 	mesh.Scale = Vector3.new(1, 1.3, 1)
 	mesh.Parent = egg
 
-	egg.Parent = workspace
+	-- Flights go past the default streaming radius, so keep the egg loaded on clients.
+	local holder = Instance.new("Model")
+	holder.Name = "EggFlight"
+	holder.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	egg.Parent = holder
+	holder.Parent = workspace
 	return egg
 end
 
@@ -130,7 +135,8 @@ local function onChargeRelease(player: Player)
 	flyEgg(egg, from, to, function()
 		Remotes.EggLanded:FireClient(player, zoneIndex, stage.Name, distance)
 		task.delay(EGG_LIFETIME, function()
-			egg:Destroy()
+			local holder = egg.Parent or egg
+			holder:Destroy()
 			inFlight[player] = nil
 		end)
 	end)

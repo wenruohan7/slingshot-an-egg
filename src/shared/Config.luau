@@ -52,7 +52,7 @@ Config.Charge = {
 -- Slingshot launch power, in studs flown at Power = 1.
 -- Each slingshot upgrade level multiplies it by LevelGrowth.
 Config.Slingshot = {
-	BasePower = 312, -- at level 0, Poor lands in Shore and Perfect reaches Meadow
+	BasePower = 320, -- level 0: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 	LevelGrowth = 1.12,
 	LaunchRange = 25, -- how close a player must stand to their pad to launch
 }

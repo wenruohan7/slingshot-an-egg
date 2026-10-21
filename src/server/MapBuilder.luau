@@ -36,12 +36,13 @@ local function part(props: { [string]: any }): Part
 	return p
 end
 
-local function sign(parent: BasePart, text: string, height: number)
+-- `size` in scale units is measured in studs, so far-away signs shrink with distance.
+local function sign(parent: BasePart, text: string, height: number, size: UDim2, maxDistance: number)
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(240, 60)
+	gui.Size = size
 	gui.StudsOffset = Vector3.new(0, height, 0)
 	gui.AlwaysOnTop = false
-	gui.MaxDistance = 1200
+	gui.MaxDistance = maxDistance
 
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -84,7 +85,7 @@ local function buildHub(map: Folder)
 			Color = PLOT_COLOR,
 			Parent = hub,
 		})
-		sign(plot, "Plot " .. i, 6)
+		sign(plot, "Plot " .. i, 6, UDim2.fromOffset(240, 60), 400)
 
 		local pad = part({
 			Name = "LaunchPad" .. i,
@@ -110,8 +111,11 @@ local function buildHub(map: Folder)
 end
 
 local function buildLane(map: Folder)
-	local laneFolder = Instance.new("Folder")
+	-- The lane is longer than the default streaming radius (1024 studs), so keep it
+	-- loaded on every client; otherwise the far zones never appear from the hub.
+	local laneFolder = Instance.new("Model")
 	laneFolder.Name = "Lane"
+	laneFolder.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	laneFolder.Parent = map
 
 	local length = Config.Lane.ZoneLength
@@ -127,15 +131,17 @@ local function buildLane(map: Folder)
 		})
 		ground:SetAttribute("ZoneIndex", i)
 
-		-- A sign post on the edge of the lane, readable from the hub.
+		-- A sign post on the edge of the lane. Posts alternate sides so the
+		-- names don't stack on top of each other when seen from the hub.
+		local side = if i % 2 == 0 then 1 else -1
 		local post = part({
 			Name = "Sign",
 			Size = Vector3.new(2, 10, 2),
-			Position = Vector3.new(startX + 6, 5, -Config.Lane.Width / 2 + 4),
+			Position = Vector3.new(startX + 6, 5, side * (Config.Lane.Width / 2 - 4)),
 			Color = WOOD_COLOR,
 			Parent = ground,
 		})
-		sign(post, zone.Name, 8)
+		sign(post, zone.Name, 10, UDim2.fromScale(40, 10), math.huge)
 
 		-- White line marking where the zone begins.
 		part({
