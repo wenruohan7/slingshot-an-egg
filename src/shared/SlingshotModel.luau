@@ -149,7 +149,8 @@ function SlingshotModel.setPull(tool: Tool, amount: number)
 	setWeld(tool:FindFirstChild("Pouch"), toHandle * CFrame.new(pouchPosition))
 
 	local thickness = (BAND_THICKNESS - BAND_THINNING * math.clamp(amount, 0, 1)) * SCALE
-	for name, tip in { BandLeft = TIP_LEFT, BandRight = TIP_RIGHT } do
+	local bands: { [string]: Vector3 } = { BandLeft = TIP_LEFT, BandRight = TIP_RIGHT }
+	for name, tip in bands do
 		local band = tool:FindFirstChild(name)
 		if band and band:IsA("BasePart") then
 			local frame, size = rodFrame(scaled(tip), pouchPosition, thickness)

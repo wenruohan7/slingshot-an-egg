@@ -2,8 +2,9 @@
 -- Launch controls: while the slingshot is in hand and you're in the hub, hold the
 -- big launch button (or click and hold, or the E key on PC). Also draws the
 -- bouncing charge meter, the slingshot band pulling back and snapping,
--- the stage word that pops up on release,
+-- the stage word that pops up on release (with a ring burst for the best ones),
 -- a camera that follows the egg, and a banner naming the zone it lands in.
+-- The hatch itself is in HatchController.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -23,9 +24,15 @@ local camera = workspace.CurrentCamera
 local FONT = Enum.Font.FredokaOne
 local LAUNCH_KEY = Enum.KeyCode.E
 
+local NORMAL_FOV = 70
+local CHARGE_FOV = 80 -- the camera pulls back a little while charging
+
 local charging = false
 local chargeStart = 0
 local flying = false
+local chargeInput: InputObject? = nil -- the touch, click or key that started the charge
+local chargedByTool = false -- started by Tool.Activated instead
+local lockedHumanoid: Humanoid? = nil -- turned to face the lane while charging
 
 -- Drives the band snap-back after release; tweening it springs the pouch forward.
 local pull = Instance.new("NumberValue")
@@ -88,6 +95,14 @@ meter.Visible = false
 meter.Parent = gui
 corner(meter, UDim.new(0, 12))
 
+-- On phones, keep the button and meter clear of the jump button, which sits
+-- within about 230 px of the bottom-right corner in every layout.
+if UserInputService.TouchEnabled then
+	button.Position = UDim2.new(1, -240, 1, -30)
+	meter.AnchorPoint = Vector2.new(1, 1)
+	meter.Position = UDim2.new(1, -410, 1, -30)
+end
+
 local stages = Config.Charge.Stages
 for i, stage in stages do
 	local top = if i == 1 then 1 else stages[i - 1].Min
@@ -120,6 +135,29 @@ local stagePopup = label({
 })
 local popupScale = Instance.new("UIScale")
 popupScale.Parent = stagePopup
+
+-- A ring that bursts out behind the stage word on a Perfect or Amazing release.
+local ring = Instance.new("Frame")
+ring.Name = "RingBurst"
+ring.AnchorPoint = Vector2.new(0.5, 0.5)
+ring.Position = stagePopup.Position
+ring.BackgroundTransparency = 1
+ring.Visible = false
+ring.Parent = gui
+corner(ring, UDim.new(1, 0))
+local ringStroke = Instance.new("UIStroke")
+ringStroke.Thickness = 10
+ringStroke.Parent = ring
+
+local function ringBurst(color: Color3)
+	ring.Visible = true
+	ring.Size = UDim2.fromOffset(60, 60)
+	ringStroke.Color = color
+	ringStroke.Transparency = 0
+	local info = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(ring, info, { Size = UDim2.fromOffset(460, 460) }):Play()
+	TweenService:Create(ringStroke, info, { Transparency = 1 }):Play()
+end
 
 local zoneBanner = label({
 	Name = "ZoneBanner",
@@ -163,32 +201,61 @@ local function heldSlingshot(): Tool?
 	return nil
 end
 
+-- The slingshot the band animation drives. It keeps driving it after it's put
+-- away, so the band always finishes snapping back to rest.
+local hookedTool: Tool? = nil
+
 pull.Changed:Connect(function(value)
-	local slingshot = heldSlingshot()
-	if slingshot then
-		SlingshotModel.setPull(slingshot, value)
+	if hookedTool then
+		SlingshotModel.setPull(hookedTool, value)
 	end
 end)
 
 local function canLaunch(): boolean
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	return heldSlingshot() ~= nil and root ~= nil and root:IsA("BasePart") and Lane.isInHub(root.Position)
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return heldSlingshot() ~= nil
+		and player:GetAttribute("DataLoaded") == true
+		and humanoid ~= nil
+		and humanoid.Health > 0
+		and root ~= nil
+		and root:IsA("BasePart")
+		and Lane.isInHub(root.Position)
 end
 
-local function startCharge()
+-- Turns the character to face down the lane (where the egg flies) and holds
+-- that facing until the charge ends.
+local function faceLane()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if root and root:IsA("BasePart") then
+		root.CFrame = CFrame.lookAt(root.Position, root.Position + Vector3.xAxis)
+	end
+	if humanoid then
+		humanoid.AutoRotate = false
+		lockedHumanoid = humanoid
+	end
+end
+
+local function startCharge(input: InputObject?)
 	if charging or flying or not canLaunch() then
 		return
 	end
 	charging = true
+	chargeInput = input
+	chargedByTool = input == nil
 	chargeStart = os.clock()
 	if snapTween then
 		snapTween:Cancel()
 		snapTween = nil
 	end
+	faceLane()
 	meter.Visible = true
 	Remotes.ChargeStart:FireServer()
 	TweenService:Create(buttonScale, TweenInfo.new(0.15), { Scale = 0.88 }):Play()
+	TweenService:Create(camera, TweenInfo.new(0.8, Enum.EasingStyle.Sine), { FieldOfView = CHARGE_FOV }):Play()
 end
 
 local function releaseCharge()
@@ -196,10 +263,18 @@ local function releaseCharge()
 		return
 	end
 	charging = false
+	chargeInput = nil
+	chargedByTool = false
+	if lockedHumanoid then
+		lockedHumanoid.AutoRotate = true
+		lockedHumanoid = nil
+	end
 	Remotes.ChargeRelease:FireServer()
-	snapTween = TweenService:Create(pull, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Value = 0 })
-	snapTween:Play()
+	local tween = TweenService:Create(pull, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Value = 0 })
+	snapTween = tween
+	tween:Play()
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	TweenService:Create(camera, TweenInfo.new(0.4, Enum.EasingStyle.Back), { FieldOfView = NORMAL_FOV }):Play()
 	task.delay(0.4, function()
 		if not charging then
 			meter.Visible = false
@@ -214,32 +289,46 @@ end
 
 button.InputBegan:Connect(function(input)
 	if isPress(input) then
-		startCharge()
+		startCharge(input)
 	end
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == LAUNCH_KEY then
-		startCharge()
+		startCharge(input)
 	end
 end)
 
--- Release anywhere on screen counts, so sliding a finger off the button still launches.
-UserInputService.InputEnded:Connect(function(input)
-	if isPress(input) or input.KeyCode == LAUNCH_KEY then
+-- Letting go anywhere on screen counts, so sliding a finger off the button still
+-- launches. On touch screens only the finger that started the charge counts, so
+-- moving or jumping with another finger doesn't fire the egg.
+UserInputService.InputEnded:Connect(function(input: InputObject)
+	if not charging or chargedByTool then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.Touch then
+		if input == chargeInput then
+			releaseCharge()
+		end
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == LAUNCH_KEY then
 		releaseCharge()
 	end
 end)
 
 -- Clicking and holding with the slingshot in hand works too (and tapping on mobile).
-local hookedTool: Tool? = nil
 local function hookTool(tool: Tool?)
 	if tool == nil or tool == hookedTool then
 		return
 	end
 	hookedTool = tool
-	tool.Activated:Connect(startCharge)
-	tool.Deactivated:Connect(releaseCharge)
+	tool.Activated:Connect(function()
+		startCharge(nil)
+	end)
+	tool.Deactivated:Connect(function()
+		if chargedByTool then
+			releaseCharge()
+		end
+	end)
 end
 
 RunService.RenderStepped:Connect(function()
@@ -280,16 +369,24 @@ end
 
 Remotes.EggLaunched.OnClientEvent:Connect(function(egg: BasePart, stageName: string)
 	flying = true
-	popText(stagePopup, popupScale, stageName .. "!", stageColor(stageName), 0.9)
+	local color = stageColor(stageName)
+	popText(stagePopup, popupScale, stageName .. "!", color, 0.9)
+	if stageName == stages[1].Name or stageName == stages[2].Name then
+		ringBurst(color)
+	end
 	if not egg then
 		flying = false
 		return
 	end
 	camera.CameraSubject = egg
-	-- The server removes the egg a few seconds after landing; then the player can launch again.
-	egg.AncestryChanged:Connect(function()
+	-- The server removes the egg once it has hatched; then the camera comes home
+	-- and the player can launch again.
+	local connection: RBXScriptConnection
+	connection = egg.AncestryChanged:Connect(function()
 		if not egg:IsDescendantOf(workspace) then
+			connection:Disconnect()
 			flying = false
+			followCharacter()
 		end
 	end)
 end)
@@ -297,5 +394,4 @@ end)
 Remotes.EggLanded.OnClientEvent:Connect(function(zoneIndex: number, _stageName: string, _distance: number)
 	local zone = Config.Zones[zoneIndex]
 	popText(zoneBanner, nil, "Landed in " .. zone.Name .. "!", zone.Color, 2)
-	task.delay(1.5, followCharacter)
 end)
