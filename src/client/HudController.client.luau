@@ -8,6 +8,7 @@ local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
 local Economy = require(Shared.Economy)
@@ -60,57 +61,88 @@ end
 -- Coin counter
 --------------------------------------------------------------------------------
 
+-- Big coins number with a coin icon: bottom left on PC like most simulators,
+-- top left on phones where the bottom left belongs to the thumbstick.
 local counter = Instance.new("Frame")
 counter.Name = "Coins"
-counter.Position = UDim2.fromOffset(16, 16)
-counter.Size = UDim2.fromOffset(230, 60)
-counter.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-counter.BackgroundTransparency = 0.2
+counter.BackgroundTransparency = 1
+counter.Size = UDim2.fromOffset(320, 84)
+if UserInputService.TouchEnabled then
+	counter.Position = UDim2.fromOffset(12, 8)
+else
+	counter.AnchorPoint = Vector2.new(0, 1)
+	counter.Position = UDim2.new(0, 16, 1, -16)
+end
 counter.Parent = gui
-corner(counter, UDim.new(1, 0))
 local counterScale = Instance.new("UIScale")
 counterScale.Parent = counter
 
 local coinIcon = Instance.new("Frame")
-coinIcon.AnchorPoint = Vector2.new(0, 0.5)
-coinIcon.Position = UDim2.new(0, 10, 0.5, 0)
-coinIcon.Size = UDim2.fromOffset(40, 40)
+coinIcon.AnchorPoint = Vector2.new(0, 1)
+coinIcon.Position = UDim2.new(0, 4, 1, -6)
+coinIcon.Size = UDim2.fromOffset(52, 52)
 coinIcon.BackgroundColor3 = COIN_COLOR
 coinIcon.Parent = counter
 corner(coinIcon, UDim.new(1, 0))
 local coinStroke = Instance.new("UIStroke")
-coinStroke.Color = Color3.fromRGB(200, 140, 20)
-coinStroke.Thickness = 3
+coinStroke.Color = Color3.fromRGB(150, 95, 10)
+coinStroke.Thickness = 4
 coinStroke.Parent = coinIcon
+local coinInner = Instance.new("Frame")
+coinInner.AnchorPoint = Vector2.new(0.5, 0.5)
+coinInner.Position = UDim2.fromScale(0.5, 0.5)
+coinInner.Size = UDim2.fromScale(0.55, 0.55)
+coinInner.BackgroundTransparency = 1
+coinInner.Parent = coinIcon
+corner(coinInner, UDim.new(1, 0))
+local innerStroke = Instance.new("UIStroke")
+innerStroke.Color = Color3.fromRGB(215, 160, 30)
+innerStroke.Thickness = 3
+innerStroke.Parent = coinInner
+
+-- A thick dark outline makes the numbers readable on any background.
+local function outline(target: TextLabel, thickness: number)
+	target.TextStrokeTransparency = 1
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(30, 20, 10)
+	stroke.Thickness = thickness
+	stroke.Parent = target
+end
 
 local coinsLabel = label({
-	Position = UDim2.fromOffset(60, 6),
-	Size = UDim2.new(1, -72, 0, 32),
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 66, 1, 0),
+	Size = UDim2.new(1, -70, 0, 58),
 	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = COIN_COLOR,
 	Text = "0",
 	Parent = counter,
 })
+outline(coinsLabel, 4)
 local incomeLabel = label({
-	Position = UDim2.fromOffset(60, 36),
-	Size = UDim2.new(1, -72, 0, 18),
+	Position = UDim2.fromOffset(68, 0),
+	Size = UDim2.new(1, -70, 0, 24),
 	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = COIN_COLOR,
 	Text = "+0/s",
 	Parent = counter,
 })
+outline(incomeLabel, 2.5)
 
--- "+12" floats up out of the counter whenever coins go up.
+-- "+12" floats away from the counter whenever coins go up.
+local POP_FROM = UDim2.new(0, 230, 1, -30)
+local POP_TO = UDim2.new(0, 230, 1, -70)
 local function coinPop(amount: number)
 	local pop = label({
-		Position = UDim2.fromOffset(60, 60),
-		Size = UDim2.fromOffset(140, 26),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = POP_FROM,
+		Size = UDim2.fromOffset(120, 28),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = COIN_COLOR,
 		Text = "+" .. Format.coins(amount),
 		Parent = counter,
 	})
 	TweenService:Create(pop, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.fromOffset(60, 76),
+		Position = POP_TO,
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	}):Play()
@@ -147,7 +179,7 @@ player:GetAttributeChangedSignal("Income"):Connect(updateIncome)
 local notice = label({
 	Name = "Notice",
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.25),
+	Position = UDim2.fromScale(0.5, 0.3),
 	Size = UDim2.fromOffset(560, 46),
 	TextTransparency = 1,
 	TextStrokeTransparency = 1,

@@ -8,7 +8,7 @@ local Config = {}
 -- MaxX meets the start of the lane, so there is no gap to fall through.
 -- Players launch from anywhere on the hub floor.
 Config.Hub = {
-	MinX = -190,
+	MinX = -200,
 	MaxX = 0,
 	Width = 200, -- studs, along Z (same as the lane)
 }

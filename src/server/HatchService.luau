@@ -89,17 +89,20 @@ local function combine(data: DataService.Data, pet: Pets.Pet): Pets.Pet?
 end
 
 -- Hatches an egg that landed `distance` studs down the lane.
--- Returns the new pet, whether it was merged into a Big pet, and whether it was
--- kept (a full inventory only keeps pets better than the weakest one).
-function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boolean, boolean)
+-- Returns the new pet, whether it was merged into a Big pet, whether it was
+-- kept (a full inventory only keeps pets better than the weakest one), and
+-- whether it's the first of its kind for the player's Index.
+function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boolean, boolean, boolean)
 	local data = DataService.get(player)
 	if not data then
-		return nil, false, false
+		return nil, false, false, false
 	end
 
 	local zone = HatchService.dropZone(distance)
 	local rarity = HatchService.rollRarity(zone, data.EggLevel)
 	local pet: Pets.Pet = { Id = Pets.idFor(zone, rarity), Mutation = HatchService.rollMutation(data.LuckLevel) }
+	local isNew = not data.Discovered[pet.Id]
+	data.Discovered[pet.Id] = true
 
 	if #data.Pets >= Config.Plot.MaxPets then
 		-- Inventory full: swap out the weakest pet if the new one is better.
@@ -111,14 +114,14 @@ function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boole
 			end
 		end
 		if Pets.earnRate(pet) <= weakestRate then
-			return pet, false, false
+			return pet, false, false, isNew
 		end
 		table.remove(data.Pets, weakest)
 	end
 
 	table.insert(data.Pets, pet)
 	local big = combine(data, pet)
-	return big or pet, big ~= nil, true
+	return big or pet, big ~= nil, true, isNew
 end
 
 return HatchService

@@ -176,10 +176,10 @@ local function onChargeRelease(player: Player)
 
 		-- The server decides the pet now; the client plays the crack and reveal
 		-- while the egg sits on the lane.
-		local pet, merged, kept = HatchService.hatch(player, distance)
+		local pet, merged, kept, isNew = HatchService.hatch(player, distance)
 		local notable = pet ~= nil and Pets.isNotable(pet)
 		if pet then
-			Remotes.EggHatched:FireClient(player, egg, pet, merged, kept)
+			Remotes.EggHatched:FireClient(player, egg, pet, merged, kept, isNew)
 			if notable then
 				Remotes.BigHatch:FireAllClients(player.DisplayName, to, pet)
 			end

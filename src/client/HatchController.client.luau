@@ -124,6 +124,24 @@ local rateLabel = label({
 })
 local noteLabel = label({ Position = UDim2.fromOffset(170, 130), Size = UDim2.new(1, -184, 0, 24), Parent = card })
 
+-- "NEW!" tag on the card's corner the first time you hatch a pet.
+local newTag = label({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromOffset(18, 14),
+	Size = UDim2.fromOffset(92, 38),
+	Rotation = -14,
+	BackgroundTransparency = 0,
+	BackgroundColor3 = Color3.fromRGB(235, 50, 50),
+	Text = "NEW!",
+	Visible = false,
+	Parent = card,
+})
+corner(newTag, UDim.new(0, 10))
+local newPadding = Instance.new("UIPadding")
+newPadding.PaddingTop = UDim.new(0, 4)
+newPadding.PaddingBottom = UDim.new(0, 4)
+newPadding.Parent = newTag
+
 local cardPet: Model? = nil
 local cardShownAt = 0
 
@@ -149,7 +167,7 @@ card.Activated:Connect(function()
 	task.spawn(hideCard)
 end)
 
-local function showCard(pet: Pets.Pet, merged: boolean, kept: boolean)
+local function showCard(pet: Pets.Pet, merged: boolean, kept: boolean, isNew: boolean)
 	local def = Pets.ById[pet.Id]
 	local rarity = Config.Rarities[if def then def.Rarity else 1]
 	local mutation = if pet.Mutation then Config.Mutations[pet.Mutation] else nil
@@ -171,6 +189,7 @@ local function showCard(pet: Pets.Pet, merged: boolean, kept: boolean)
 	rateLabel.Text = `+{Format.number(Pets.earnRate(pet))} coins/s`
 	noteLabel.Text = if not kept then "Pets full: not kept" elseif merged then "3 combined into a BIG pet!" else ""
 	cardStroke.Color = color
+	newTag.Visible = isNew
 
 	card.Visible = true
 	cardScale.Scale = 0.3
@@ -311,9 +330,9 @@ end
 --------------------------------------------------------------------------------
 
 -- Plays the hatch on your landed egg, then shows the card.
-local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: boolean)
+local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: boolean, isNew: boolean)
 	if not (egg and egg:IsDescendantOf(workspace)) then
-		showCard(pet, merged, kept)
+		showCard(pet, merged, kept, isNew)
 		return
 	end
 	local base = egg.CFrame
@@ -355,7 +374,7 @@ local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: b
 		glow:Destroy()
 	end
 	if not egg:IsDescendantOf(workspace) then
-		showCard(pet, merged, kept)
+		showCard(pet, merged, kept, isNew)
 		return
 	end
 
@@ -379,7 +398,7 @@ local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: b
 	if notable then
 		confetti()
 	end
-	showCard(pet, merged, kept)
+	showCard(pet, merged, kept, isNew)
 
 	-- A happy little hop, then the pet stays until the egg is cleared away.
 	local hopStart = os.clock()
@@ -394,8 +413,8 @@ local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: b
 	grow:Destroy()
 end
 
-Remotes.EggHatched.OnClientEvent:Connect(function(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: boolean)
-	task.spawn(playHatch, egg, pet, merged, kept)
+Remotes.EggHatched.OnClientEvent:Connect(function(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: boolean, isNew: boolean?)
+	task.spawn(playHatch, egg, pet, merged, kept, isNew == true)
 end)
 
 --------------------------------------------------------------------------------
@@ -405,7 +424,7 @@ end)
 local banner = label({
 	Name = "BigHatchBanner",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 140),
+	Position = UDim2.new(0.5, 0, 0, 200),
 	Size = UDim2.fromOffset(640, 54),
 	TextTransparency = 1,
 	TextStrokeTransparency = 1,

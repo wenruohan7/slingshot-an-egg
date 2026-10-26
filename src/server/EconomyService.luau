@@ -37,23 +37,32 @@ function EconomyService.publish(player: Player)
 	if not data then
 		return
 	end
+	local income = DataService.income(data)
 	player:SetAttribute("Coins", data.Coins)
-	player:SetAttribute("Income", DataService.income(data))
+	player:SetAttribute("Income", income)
 	player:SetAttribute("SlingshotLevel", data.SlingshotLevel)
 	player:SetAttribute("EggLevel", data.EggLevel)
 	player:SetAttribute("LuckLevel", data.LuckLevel)
 	player:SetAttribute("Pedestals", data.Pedestals)
 	player:SetAttribute("Rebirths", data.Rebirths)
 	player:SetAttribute("PetCount", #data.Pets)
+	-- Pet ids found so far, comma separated, for the Index.
+	local found = {}
+	for id in data.Discovered do
+		table.insert(found, id)
+	end
+	table.sort(found)
+	player:SetAttribute("Discovered", table.concat(found, ","))
 	player:SetAttribute("DataLoaded", true)
 	setStat(player, "Coins", data.Coins)
+	setStat(player, "Coins/s", income)
 	setStat(player, "Rebirths", data.Rebirths)
 end
 
 local function addLeaderstats(player: Player)
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
-	for _, name in { "Coins", "Rebirths" } do
+	for _, name in { "Coins", "Coins/s", "Rebirths" } do
 		local value = Instance.new("IntValue")
 		value.Name = name
 		value.Parent = stats

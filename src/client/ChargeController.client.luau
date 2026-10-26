@@ -162,7 +162,7 @@ end
 local zoneBanner = label({
 	Name = "ZoneBanner",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 60),
+	Position = UDim2.new(0.5, 0, 0, 130), -- below the hint line
 	Size = UDim2.fromOffset(520, 70),
 	TextTransparency = 1,
 	TextStrokeTransparency = 1,

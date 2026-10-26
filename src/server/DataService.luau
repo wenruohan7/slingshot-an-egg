@@ -16,6 +16,7 @@ local Pets = require(Shared.Pets)
 export type Data = {
 	Coins: number,
 	Pets: { Pets.Pet },
+	Discovered: { [string]: boolean }, -- every pet id ever hatched, for the Index
 	SlingshotLevel: number,
 	EggLevel: number,
 	LuckLevel: number,
@@ -41,6 +42,7 @@ local function defaults(): Data
 	return {
 		Coins = 0,
 		Pets = {},
+		Discovered = {},
 		SlingshotLevel = 0,
 		EggLevel = 0,
 		LuckLevel = 0,
@@ -121,6 +123,10 @@ local function load(player: Player)
 			data = defaults()
 		else
 			data = reconcile(saved)
+			-- Saves from before the Index: count every owned pet as found.
+			for _, pet in data.Pets do
+				data.Discovered[pet.Id] = true
+			end
 			canSave[player] = true
 		end
 	else

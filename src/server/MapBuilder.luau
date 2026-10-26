@@ -1,7 +1,7 @@
 --!strict
--- Builds the greybox map from code: the grassy hub with 5 plots (each with
--- 12 pedestals), the slingshot, egg and luck stands, the rebirth stand,
--- and the 8-zone lane. Everything goes into workspace.Map.
+-- Builds the greybox map from code: the studded green hub ringed by checkered
+-- walls, 5 fenced plots (each with 12 pedestals), the slingshot, egg and luck
+-- stands, the rebirth stand, and the 8-zone lane. Everything goes into workspace.Map.
 -- Real art replaces these blocks later; keep part names stable so code can find them.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -33,9 +33,23 @@ MapBuilder.STANDS = {
 local PLOT_X = -150
 local PLOT_SPACING = 40
 
-local HUB_COLOR = Color3.fromRGB(110, 185, 90)
-local PLOT_COLOR = Color3.fromRGB(255, 245, 210)
+-- Two greens for the checkered, studded hub floor.
+local FLOOR_COLORS = { Color3.fromRGB(118, 205, 72), Color3.fromRGB(104, 190, 62) }
+local FLOOR_TILE = 20 -- studs per floor square
+local PLOT_COLOR = Color3.fromRGB(150, 225, 100)
 local WOOD_COLOR = Color3.fromRGB(170, 120, 80)
+
+-- The walls around the hub: two checkered browns with a strip of grass on top.
+local WALL_COLORS = { Color3.fromRGB(215, 150, 95), Color3.fromRGB(190, 125, 75) }
+local WALL_HEIGHT = 24
+local WALL_THICKNESS = 4
+local WALL_TILE = Vector2.new(20, 12) -- width and height of each wall square
+
+-- Plot fences: dark posts with orange rails and cross braces.
+local FENCE_POST_COLOR = Color3.fromRGB(85, 60, 45)
+local FENCE_RAIL_COLOR = Color3.fromRGB(195, 115, 60)
+local FENCE_HEIGHT = 4.5
+local FENCE_GATE = 10 -- gap in the front fence, facing the lane
 
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -47,6 +61,138 @@ local function part(props: { [string]: any }): Part
 		(p :: any)[key] = value
 	end
 	return p
+end
+
+-- A thin bar from `a` to `b`.
+local function bar(parent: Instance, name: string, a: Vector3, b: Vector3, thickness: number, color: Color3): Part
+	return part({
+		Name = name,
+		Size = Vector3.new(thickness, thickness, (b - a).Magnitude),
+		CFrame = CFrame.lookAt((a + b) / 2, b),
+		Color = color,
+		Parent = parent,
+	})
+end
+
+-- One straight run of fence on the ground at height `y`, from `a` to `b`:
+-- posts about every 8 studs, a top and bottom rail, and an X brace between posts.
+local function fenceRun(parent: Instance, a: Vector3, b: Vector3)
+	local length = (b - a).Magnitude
+	local segments = math.max(1, math.ceil(length / 8))
+	local up = Vector3.new(0, FENCE_HEIGHT, 0)
+	local low = Vector3.new(0, 0.8, 0)
+	local high = Vector3.new(0, FENCE_HEIGHT - 0.6, 0)
+	for i = 0, segments do
+		local at = a:Lerp(b, i / segments)
+		part({
+			Name = "Post",
+			Size = Vector3.new(1, FENCE_HEIGHT, 1),
+			Position = at + up / 2,
+			Color = FENCE_POST_COLOR,
+			Parent = parent,
+		})
+		if i > 0 then
+			local from = a:Lerp(b, (i - 1) / segments)
+			bar(parent, "Brace", from + low, at + high, 0.4, FENCE_RAIL_COLOR).CanCollide = false
+			bar(parent, "Brace", from + high, at + low, 0.4, FENCE_RAIL_COLOR).CanCollide = false
+		end
+	end
+	bar(parent, "Rail", a + low, b + low, 0.6, FENCE_RAIL_COLOR)
+	bar(parent, "Rail", a + high, b + high, 0.6, FENCE_RAIL_COLOR)
+end
+
+-- A fence around a plot, open in the middle of the side facing the lane (+X).
+local function buildFence(plot: BasePart)
+	local fence = Instance.new("Model")
+	fence.Name = "Fence"
+	local top = plot.Position.Y + plot.Size.Y / 2
+	local halfX = plot.Size.X / 2 - 0.5
+	local halfZ = plot.Size.Z / 2 - 0.5
+	local function corner(x: number, z: number): Vector3
+		return Vector3.new(plot.Position.X + x, top, plot.Position.Z + z)
+	end
+	fenceRun(fence, corner(-halfX, -halfZ), corner(-halfX, halfZ)) -- back
+	fenceRun(fence, corner(-halfX, -halfZ), corner(halfX, -halfZ)) -- sides
+	fenceRun(fence, corner(-halfX, halfZ), corner(halfX, halfZ))
+	fenceRun(fence, corner(halfX, -halfZ), corner(halfX, -FENCE_GATE / 2)) -- front, either side of the gate
+	fenceRun(fence, corner(halfX, FENCE_GATE / 2), corner(halfX, halfZ))
+	fence.Parent = plot
+end
+
+-- The hub floor: big studded squares in two greens, like a checkerboard.
+local function buildFloor(hub: Folder)
+	local ground = Instance.new("Folder")
+	ground.Name = "Ground"
+	local length = Config.Hub.MaxX - Config.Hub.MinX
+	local columns = math.ceil(length / FLOOR_TILE)
+	local rows = math.ceil(Config.Hub.Width / FLOOR_TILE)
+	for col = 0, columns - 1 do
+		for row = 0, rows - 1 do
+			local x0 = Config.Hub.MinX + col * FLOOR_TILE
+			local x1 = math.min(x0 + FLOOR_TILE, Config.Hub.MaxX)
+			local z0 = -Config.Hub.Width / 2 + row * FLOOR_TILE
+			local z1 = math.min(z0 + FLOOR_TILE, Config.Hub.Width / 2)
+			part({
+				Name = "Tile",
+				Size = Vector3.new(x1 - x0, 2, z1 - z0),
+				Position = Vector3.new((x0 + x1) / 2, -1, (z0 + z1) / 2),
+				Color = FLOOR_COLORS[(col + row) % 2 + 1],
+				Material = Enum.Material.Plastic,
+				TopSurface = Enum.SurfaceType.Studs,
+				Parent = ground,
+			})
+		end
+	end
+	ground.Parent = hub
+end
+
+-- A checkered wall from `a` to `b` (on the ground, wall centre line), with grass on top.
+-- Each square's length runs along its Z axis, which lookAt points down the wall.
+local function wallRun(parent: Instance, a: Vector3, b: Vector3)
+	local length = (b - a).Magnitude
+	local columns = math.ceil(length / WALL_TILE.X)
+	local rows = math.ceil(WALL_HEIGHT / WALL_TILE.Y)
+	local direction = (b - a).Unit
+	for col = 0, columns - 1 do
+		local s0 = col * WALL_TILE.X
+		local s1 = math.min(s0 + WALL_TILE.X, length)
+		for row = 0, rows - 1 do
+			local y0 = row * WALL_TILE.Y
+			local y1 = math.min(y0 + WALL_TILE.Y, WALL_HEIGHT)
+			local centre = a + direction * ((s0 + s1) / 2) + Vector3.new(0, (y0 + y1) / 2, 0)
+			part({
+				Name = "Wall",
+				Size = Vector3.new(WALL_THICKNESS, y1 - y0, s1 - s0),
+				CFrame = CFrame.lookAt(centre, centre + direction),
+				Color = WALL_COLORS[(col + row) % 2 + 1],
+				Material = Enum.Material.Plastic,
+				Parent = parent,
+			})
+		end
+	end
+	local capCentre = (a + b) / 2 + Vector3.new(0, WALL_HEIGHT + 1, 0)
+	part({
+		Name = "Grass",
+		Size = Vector3.new(WALL_THICKNESS + 2, 2, length + 2),
+		CFrame = CFrame.lookAt(capCentre, capCentre + direction),
+		Color = FLOOR_COLORS[1],
+		Material = Enum.Material.Plastic,
+		TopSurface = Enum.SurfaceType.Studs,
+		Parent = parent,
+	})
+end
+
+-- Walls on the back and both sides of the hub; the side facing the lane stays open.
+local function buildWalls(hub: Folder)
+	local walls = Instance.new("Folder")
+	walls.Name = "Walls"
+	local back = Config.Hub.MinX - WALL_THICKNESS / 2
+	local side = Config.Hub.Width / 2 + WALL_THICKNESS / 2
+	local front = Config.Hub.MaxX
+	wallRun(walls, Vector3.new(back, 0, -side - WALL_THICKNESS / 2), Vector3.new(back, 0, side + WALL_THICKNESS / 2))
+	wallRun(walls, Vector3.new(back + WALL_THICKNESS / 2, 0, -side), Vector3.new(front, 0, -side))
+	wallRun(walls, Vector3.new(back + WALL_THICKNESS / 2, 0, side), Vector3.new(front, 0, side))
+	walls.Parent = hub
 end
 
 -- `size` in scale units is measured in studs, so far-away signs shrink with distance.
@@ -139,15 +285,8 @@ local function buildHub(map: Folder)
 	hub.Parent = map
 
 	-- Hub floor sits on the -X side of the lane and runs right up to its start line.
-	local hubLength = Config.Hub.MaxX - Config.Hub.MinX
-	part({
-		Name = "Ground",
-		Size = Vector3.new(hubLength, 2, Config.Hub.Width),
-		Position = Vector3.new(Config.Hub.MinX + hubLength / 2, -1, 0),
-		Color = HUB_COLOR,
-		Material = Enum.Material.Grass,
-		Parent = hub,
-	})
+	buildFloor(hub)
+	buildWalls(hub)
 
 	for i = 1, MapBuilder.PLOT_COUNT do
 		local z = MapBuilder.slotZ(i)
@@ -157,8 +296,11 @@ local function buildHub(map: Folder)
 			Size = Vector3.new(50, 1, 34),
 			Position = Vector3.new(PLOT_X, 0.5, z),
 			Color = PLOT_COLOR,
+			Material = Enum.Material.Plastic,
+			TopSurface = Enum.SurfaceType.Studs,
 			Parent = hub,
 		})
+		buildFence(plot)
 		sign(plot, "Plot " .. i, 8, UDim2.fromOffset(260, 70), 400)
 
 		local plotTop = plot.Position.Y + plot.Size.Y / 2
