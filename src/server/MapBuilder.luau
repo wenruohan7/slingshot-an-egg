@@ -400,6 +400,12 @@ function MapBuilder.build(): Folder
 	if baseplate then
 		baseplate:Destroy()
 	end
+	-- So would the template's spawn pad; players should only spawn on ours in the hub.
+	for _, instance in workspace:GetDescendants() do
+		if instance:IsA("SpawnLocation") then
+			instance:Destroy()
+		end
+	end
 
 	local map = Instance.new("Folder")
 	map.Name = "Map"
