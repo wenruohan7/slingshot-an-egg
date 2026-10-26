@@ -152,6 +152,12 @@ Config.Charge = {
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
 Config.Slingshot = {
 	BasePower = 320, -- first slingshot: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
+
+	-- Your own animations from Studio's Animation Editor, as "rbxassetid://123". Left empty, the
+	-- arms are posed from code instead. Charge plays while the button is held (make it Looping),
+	-- Launch plays once on release. Publish them from the account (or group) that owns the game.
+	ChargeAnimationId = "",
+	LaunchAnimationId = "",
 }
 
 return Config

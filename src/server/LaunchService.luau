@@ -118,16 +118,35 @@ local function flyEgg(egg: BasePart, from: Vector3, to: Vector3, onLanded: () ->
 	end)
 end
 
+-- Every client poses the slingshot arms from these character attributes
+-- (PoseController), so everyone sees each other pull back and let go.
+local function showCharge(player: Player, charging: boolean)
+	local character = player.Character
+	if not character then
+		return
+	end
+	if charging then
+		character:SetAttribute("ChargeStartedAt", workspace:GetServerTimeNow())
+	elseif character:GetAttribute("ChargeStartedAt") ~= nil then
+		local held = workspace:GetServerTimeNow() - (character:GetAttribute("ChargeStartedAt") :: number)
+		character:SetAttribute("ChargeStartedAt", nil)
+		character:SetAttribute("LaunchPull", Charge.valueAt(held))
+		character:SetAttribute("LaunchedAt", workspace:GetServerTimeNow())
+	end
+end
+
 local function onChargeStart(player: Player)
 	if inFlight[player] then
 		return
 	end
 	chargeStarted[player] = os.clock()
+	showCharge(player, true)
 end
 
 local function onChargeRelease(player: Player)
 	local started = chargeStarted[player]
 	chargeStarted[player] = nil
+	showCharge(player, false)
 	if not started or inFlight[player] then
 		return
 	end

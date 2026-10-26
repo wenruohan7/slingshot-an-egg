@@ -36,6 +36,10 @@ Every slingshot and egg tier is drawn from parts by default. To swap in a real m
 
 Tiers without a model keep the built-in look, so you can add them one at a time.
 
+## Using your own slingshot animation
+
+By default the arms are posed from code while charging and launching (`src/client/PoseController.client.luau`). To use your own instead, make them in Studio's Animation Editor, publish them from the account that owns the game, and put the ids in `Config.Slingshot`: `ChargeAnimationId` (set to Looping, plays while the button is held) and `LaunchAnimationId` (plays once on release).
+
 ## Saving in Studio
 
 Progress is saved with DataStores. To test saving in Studio, turn on **Game Settings > Security > Enable Studio Access to API Services** (the place must be published). Without it the game still runs, it just starts fresh each time.
@@ -47,4 +51,4 @@ Progress is saved with DataStores. To test saving in Studio, turn on **Game Sett
 - [x] 3. Hatching with the drop rates and mutations, pets on pedestals, coins
 - [x] 4. Saving player data, offline coins
 - [x] 5. Shop menu (12 slingshots, 8 eggs, Luck, rebirth), pedestal buying
-- [ ] 6. Animations, effects and real art (first pass done: hatch, beam, confetti, coin pops, pet bounce)
+- [ ] 6. Animations, effects and real art (first pass done: slingshot pull and launch pose, hatch, beam, confetti, coin pops, pet bounce)

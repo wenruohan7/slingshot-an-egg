@@ -18,6 +18,8 @@ local Lane = require(Shared.Lane)
 local Remotes = require(Shared.Remotes)
 local SlingshotModel = require(Shared.SlingshotModel)
 
+local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
+
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
@@ -283,6 +285,8 @@ local function startCharge(input: InputObject?)
 	chargeInput = input
 	chargedByTool = input == nil
 	chargeStart = os.clock()
+	LocalCharge.charging = true
+	LocalCharge.startedAt = chargeStart
 	if snapTween then
 		snapTween:Cancel()
 		snapTween = nil
@@ -301,6 +305,9 @@ local function releaseCharge()
 	charging = false
 	chargeInput = nil
 	chargedByTool = false
+	LocalCharge.charging = false
+	LocalCharge.releasedAt = os.clock()
+	LocalCharge.releasePull = pull.Value
 	if lockedHumanoid then
 		lockedHumanoid.AutoRotate = true
 		lockedHumanoid = nil
