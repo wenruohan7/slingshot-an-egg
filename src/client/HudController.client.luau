@@ -289,38 +289,23 @@ player:GetAttributeChangedSignal("DataLoaded"):Connect(onDataLoaded)
 onDataLoaded()
 
 --------------------------------------------------------------------------------
--- Prompts: your prices on the stands, and only your own pedestal prompt
+-- Prompts: what you own on the stands, and only your own pedestal prompt
 --------------------------------------------------------------------------------
 
 local standPrompts: { [ProximityPrompt]: string } = {}
 
-local function priceText(cost: number?): string
-	return if cost then `{Format.coins(cost)} coins` else "Max level"
-end
-
+-- Stands just open the Shop; the label shows what you have now.
 local function updateStandPrompt(prompt: ProximityPrompt, kind: string)
 	if kind == "Slingshot" then
-		local level = attribute("SlingshotLevel")
-		local now = math.floor(Economy.launchPower(level))
-		local nextPower = math.floor(Economy.launchPower(level + 1))
-		prompt.ObjectText = `Slingshot Lv {level}: power {now} → {nextPower}`
-		prompt.ActionText = "Upgrade: " .. priceText(Economy.upgradeCost(kind, level))
+		prompt.ObjectText = Economy.slingshot(attribute("SlingshotLevel")).Name
 	elseif kind == "Egg" then
-		local level = attribute("EggLevel")
-		local boost = math.floor((Economy.eggBoost(level) - 1) * 100 + 0.5)
-		prompt.ObjectText = `Eggs Lv {level}: Rare and up +{boost}%`
-		prompt.ActionText = "Upgrade: " .. priceText(Economy.upgradeCost(kind, level))
+		prompt.ObjectText = Economy.egg(attribute("EggLevel")).Name
 	elseif kind == "Luck" then
-		local level = attribute("LuckLevel")
-		local boost = math.floor((Economy.luckBoost(level) - 1) * 100 + 0.5)
-		prompt.ObjectText = `Luck Lv {level}: mutations +{boost}%`
-		prompt.ActionText = "Upgrade: " .. priceText(Economy.upgradeCost(kind, level))
+		prompt.ObjectText = `Luck Lv {attribute("LuckLevel")}`
 	elseif kind == "Rebirth" then
-		local rebirths = attribute("Rebirths")
-		local nextMultiplier = Economy.rebirthMultiplier(rebirths + 1)
-		prompt.ObjectText = `Rebirth: coins x{Format.number(nextMultiplier)}, keep your pets`
-		prompt.ActionText = "Rebirth: " .. priceText(Economy.rebirthCost(rebirths))
+		prompt.ObjectText = `Rebirth: coins x{Format.number(Economy.rebirthMultiplier(attribute("Rebirths") + 1))}`
 	end
+	prompt.ActionText = "Open shop"
 end
 
 local function updateAllStands()

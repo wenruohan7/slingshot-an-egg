@@ -12,6 +12,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Charge = require(Shared.Charge)
 local Economy = require(Shared.Economy)
+local EggModel = require(Shared.EggModel)
 local Lane = require(Shared.Lane)
 local Pets = require(Shared.Pets)
 local Remotes = require(Shared.Remotes)
@@ -24,7 +25,6 @@ local PlotService = require(script.Parent.PlotService)
 local LaunchService = {}
 
 local GROUND_Y = 2 -- egg rests on the lane surface (y = 0) with its centre 2 studs up
-local EGG_COLOR = Color3.fromRGB(255, 250, 235)
 local BOUNCE_SECONDS = 0.5 -- two little hops after touching down
 local LANE_EDGE_MARGIN = 10 -- keep landings this far inside the lane's sides
 
@@ -58,22 +58,9 @@ function LaunchService.launchPower(player: Player): number
 	return Economy.launchPower(if data then data.SlingshotLevel else 0)
 end
 
-local function makeEgg(position: Vector3, trailColor: Color3): Part
-	local egg = Instance.new("Part")
-	egg.Name = "Egg"
-	egg.Shape = Enum.PartType.Ball
-	egg.Size = Vector3.new(4, 4, 4)
-	egg.Color = EGG_COLOR
-	egg.Material = Enum.Material.SmoothPlastic
-	egg.Anchored = true
-	egg.CanCollide = false
+local function makeEgg(position: Vector3, trailColor: Color3, eggLevel: number): BasePart
+	local egg = EggModel.build(eggLevel)
 	egg.Position = position
-
-	-- Stretch the ball into an egg shape.
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.Sphere
-	mesh.Scale = Vector3.new(1, 1.3, 1)
-	mesh.Parent = egg
 
 	-- A colour trail in the stage's colour. The attachments sit on the spin axis
 	-- so the ribbon stays flat while the egg tumbles.
@@ -103,7 +90,7 @@ end
 
 -- Moves the egg along an arc from `from` to `to`, gives it two little hops on
 -- the spot, then calls `onLanded`.
-local function flyEgg(egg: Part, from: Vector3, to: Vector3, onLanded: () -> ())
+local function flyEgg(egg: BasePart, from: Vector3, to: Vector3, onLanded: () -> ())
 	local distance = (to - from).Magnitude
 	local duration = 1.2 + distance / 500
 	local arcHeight = 20 + distance * 0.15
@@ -163,7 +150,8 @@ local function onChargeRelease(player: Player)
 	local to = Vector3.new(Config.Lane.StartX + distance, GROUND_Y, math.clamp(root.Position.Z, -laneHalf, laneHalf))
 
 	inFlight[player] = true
-	local egg = makeEgg(from, stage.Color)
+	local data = DataService.get(player)
+	local egg = makeEgg(from, stage.Color, if data then data.EggLevel else 0)
 	Remotes.EggLaunched:FireClient(player, egg, stage.Name)
 
 	flyEgg(egg, from, to, function()

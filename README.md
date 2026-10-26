@@ -15,7 +15,7 @@ The code lives in this repo and is synced into Roblox Studio with [Rojo](https:/
 
 The scripts now appear in Studio and update every time a file changes. Press **Play** to test.
 
-Set the place's **Max Players** to 5 (Game Settings, then Places), to match the 5 plots.
+Set the place's **Max Players** to 4 (Game Settings, then Places), to match the 4 plots. Code can't change this setting.
 
 ## How the code is laid out
 
@@ -25,7 +25,16 @@ Set the place's **Max Players** to 5 (Game Settings, then Places), to match the 
 | `src/server` | ServerScriptService.Server | Map builder, plots and pedestals, launching, hatching, coins and shops, saving |
 | `src/client` | StarterPlayerScripts.Client | Launch button and meter, hatch reveal, coin counter and notices, Shop and Index menus, hint line |
 
-To change zones, drop rates, pet earnings, prices or launch power, edit `src/shared/Config.luau`.
+To change zones, drop rates, pet earnings, prices, launch power, or the slingshot and egg tiers, edit `src/shared/Config.luau`.
+
+## Using your own slingshot and egg models
+
+Every slingshot and egg tier is drawn from parts by default. To swap in a real model, put it in Studio by hand (Rojo leaves these folders alone):
+
+- **Slingshots:** make a Folder called `SlingshotModels` in ReplicatedStorage. Put a **Tool** in it named exactly like the tier in `Config.Slingshots` (for example `Iron Slingshot`), with a part called `Handle`. That model is then held in the hand and shown in the Shop.
+- **Eggs:** make a Folder called `EggModels` in ReplicatedStorage. Put a **MeshPart** in it named exactly like the tier in `Config.Eggs` (for example `Golden Egg`), about 4 studs wide and 5 tall. That egg is then launched and shown in the Shop.
+
+Tiers without a model keep the built-in look, so you can add them one at a time.
 
 ## Saving in Studio
 
@@ -33,9 +42,9 @@ Progress is saved with DataStores. To test saving in Studio, turn on **Game Sett
 
 ## Build progress
 
-- [x] 1. Map built from code: studded hub with walls, 5 fenced plots, upgrade stands, 8-zone lane
+- [x] 1. Map built from code: studded hub with walls, 4 fenced plots, shop stands, walled 8-zone lane
 - [x] 2. Slingshot item, charge meter with 6 stages, launch, landing zone
 - [x] 3. Hatching with the drop rates and mutations, pets on pedestals, coins
 - [x] 4. Saving player data, offline coins
-- [x] 5. Upgrade stands, pedestal buying, rebirth
+- [x] 5. Shop menu (12 slingshots, 8 eggs, Luck, rebirth), pedestal buying
 - [ ] 6. Animations, effects and real art (first pass done: hatch, beam, confetti, coin pops, pet bounce)

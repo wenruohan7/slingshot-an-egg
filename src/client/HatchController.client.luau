@@ -22,7 +22,6 @@ local camera = workspace.CurrentCamera
 local FONT = Enum.Font.FredokaOne
 local SHAKE_SECONDS = 1.3 -- normal hatch: shakes before the crack
 local CARD_SECONDS = 3.2 -- how long the reveal card stays unless tapped away
-local SHELL_COLOR = Color3.fromRGB(255, 250, 235)
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "HatchGui"
@@ -255,12 +254,12 @@ local function dustPuff(position: Vector3)
 end
 
 -- Shell pieces fly out when the egg cracks.
-local function shellBurst(position: Vector3)
+local function shellBurst(position: Vector3, color: Color3)
 	for i = 1, 7 do
 		local angle = i / 7 * math.pi * 2
 		local shard = localPart({
 			Size = Vector3.new(1.2, 0.3, 1),
-			Color = SHELL_COLOR,
+			Color = color,
 			CFrame = CFrame.new(position) * CFrame.Angles(math.random() * 3, angle, math.random() * 3),
 		})
 		local goal = CFrame.new(position + Vector3.new(math.cos(angle) * 5, 2 + math.random() * 2, math.sin(angle) * 5))
@@ -381,7 +380,7 @@ local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: b
 	-- Crack: hide the egg, burst the shell, pop the pet out facing the camera.
 	local crackAt = egg.Position
 	egg.LocalTransparencyModifier = 1
-	shellBurst(crackAt)
+	shellBurst(crackAt, egg.Color)
 	local flatCamera = Vector3.new(camera.CFrame.Position.X, ground.Y, camera.CFrame.Position.Z)
 	local facing = CFrame.lookAt(ground, flatCamera) * CFrame.Angles(0, math.pi / 2, 0)
 	local popped = PetModel.build(pet, facing)

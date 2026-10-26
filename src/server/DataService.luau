@@ -123,6 +123,9 @@ local function load(player: Player)
 			data = defaults()
 		else
 			data = reconcile(saved)
+			-- Keep levels in range if the lists of slingshots or eggs got shorter.
+			data.SlingshotLevel = math.clamp(data.SlingshotLevel, 0, #Config.Slingshots - 1)
+			data.EggLevel = math.clamp(data.EggLevel, 0, #Config.Eggs - 1)
 			-- Saves from before the Index: count every owned pet as found.
 			for _, pet in data.Pets do
 				data.Discovered[pet.Id] = true

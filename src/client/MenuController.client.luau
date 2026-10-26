@@ -1,9 +1,10 @@
 --!strict
 -- The big menu buttons on the left (Shop and Index, with red badges), the hint
 -- line along the top of the screen, and the two panels they open:
--- the Index (every pet, found or not) and the Shop (your upgrades and where to buy them).
+-- the Index (every pet, found or not) and the Shop, where every upgrade is bought.
 
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -11,7 +12,10 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
+local EggModel = require(Shared.EggModel)
 local Pets = require(Shared.Pets)
+local Remotes = require(Shared.Remotes)
+local SlingshotModel = require(Shared.SlingshotModel)
 
 local player = Players.LocalPlayer
 
@@ -19,7 +23,6 @@ local FONT = Enum.Font.FredokaOne
 local PANEL_COLOR = Color3.fromRGB(40, 40, 60)
 local BADGE_COLOR = Color3.fromRGB(235, 50, 50)
 local GOOD_COLOR = Color3.fromRGB(120, 230, 120)
-local BAD_COLOR = Color3.fromRGB(255, 120, 120)
 local UNKNOWN_COLOR = Color3.fromRGB(70, 70, 90)
 
 -- What each stand sells, in the order the Shop lists them.
@@ -177,7 +180,7 @@ local function currentHint(): string?
 	end
 	local coins = attribute("Coins")
 	if coins >= Economy.rebirthCost(attribute("Rebirths")) then
-		return "You can rebirth at the purple stand!"
+		return "You can rebirth in the Shop!"
 	end
 	local pedestalCost = Economy.pedestalCost(attribute("Pedestals"))
 	if pedestalCost and coins >= pedestalCost and attribute("PetCount") > attribute("Pedestals") then
@@ -185,9 +188,15 @@ local function currentHint(): string?
 	end
 	for _, stand in STANDS do
 		local field = Economy.UPGRADE_FIELDS[stand.Kind]
-		local cost = field and Economy.upgradeCost(stand.Kind, attribute(field))
-		if cost and coins >= cost then
-			return `Upgrade your {stand.Title} at its stand!`
+		local level = field and attribute(field)
+		local cost = level and Economy.upgradeCost(stand.Kind, level)
+		if level and cost and coins >= cost then
+			if stand.Kind == "Slingshot" then
+				return `Open the Shop to buy the {Economy.slingshot(level + 1).Name}!`
+			elseif stand.Kind == "Egg" then
+				return `Open the Shop to buy the {Economy.egg(level + 1).Name}!`
+			end
+			return `Open the Shop to upgrade your {stand.Title}!`
 		end
 	end
 	return "Launch farther to hatch rarer pets!"
@@ -438,159 +447,301 @@ end)
 -- Shop
 --------------------------------------------------------------------------------
 
-label({
-	AnchorPoint = Vector2.new(0, 1),
-	Position = UDim2.new(0, 24, 1, -14),
-	Size = UDim2.new(1, -48, 0, 26),
-	Text = "Buy upgrades at the stands in the hub. Tap Show me to find one.",
-	TextColor3 = Color3.fromRGB(200, 200, 220),
-	Parent = shopPanel,
-})
+-- Tabs along the top of the Shop, one per thing it sells.
+local TABS = {
+	{ Kind = "Slingshot", Title = "Slingshots" },
+	{ Kind = "Egg", Title = "Eggs" },
+	{ Kind = "Luck", Title = "Luck" },
+	{ Kind = "Rebirth", Title = "Rebirth" },
+}
+local CARD_SIZE = Vector2.new(150, 300)
 
-type ShopRow = { Level: TextLabel, Effect: TextLabel, Price: TextLabel }
-local shopRows: { [string]: ShopRow } = {}
+local pages: { [string]: Frame } = {}
+local tabButtons: { [string]: TextButton } = {}
+local refreshShop: () -> boolean
 
--- A glowing line from the player to a stand for a few seconds.
-local guide: { Beam: Beam, Anchor: Part, Ends: number }? = nil
-local function showMeTheWay(kind: string, color: Color3)
-	if guide then
-		guide.Beam:Destroy()
-		guide.Anchor:Destroy()
-		guide = nil
+local function tabColor(kind: string): Color3
+	for _, stand in STANDS do
+		if stand.Kind == kind then
+			return stand.Color
+		end
 	end
-	local map = workspace:FindFirstChild("Map")
-	local hub = map and map:FindFirstChild("Hub")
-	local stand = hub and hub:FindFirstChild(kind .. "Stand")
-	local counter = stand and stand:FindFirstChild("Counter")
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not (counter and counter:IsA("BasePart") and root) then
+	return Color3.new(1, 1, 1)
+end
+
+local function showTab(kind: string)
+	for tabKind, page in pages do
+		page.Visible = tabKind == kind
+		tabButtons[tabKind].BackgroundTransparency = if tabKind == kind then 0 else 0.6
+	end
+end
+
+for i, tab in TABS do
+	local button = Instance.new("TextButton")
+	button.Name = tab.Kind .. "Tab"
+	button.Position = UDim2.fromOffset(140 + (i - 1) * 132, 16)
+	button.Size = UDim2.fromOffset(124, 40)
+	button.BackgroundColor3 = tabColor(tab.Kind)
+	button.Font = FONT
+	button.TextScaled = true
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Text = tab.Title
+	button.Parent = shopPanel
+	corner(button, UDim.new(0, 10))
+	stroke(button, Color3.fromRGB(20, 20, 30), 3)
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 6)
+	padding.PaddingBottom = UDim.new(0, 6)
+	padding.Parent = button
+	button.Activated:Connect(function()
+		bounce(button)
+		showTab(tab.Kind)
+	end)
+	tabButtons[tab.Kind] = button
+
+	local page = Instance.new("Frame")
+	page.Name = tab.Kind .. "Page"
+	page.Position = UDim2.fromOffset(16, 70)
+	page.Size = UDim2.new(1, -32, 1, -86)
+	page.BackgroundTransparency = 1
+	page.Visible = false
+	page.Parent = shopPanel
+	pages[tab.Kind] = page
+end
+
+-- Points a viewport's camera at everything in it, from the front and a little above.
+local function frameViewport(viewport: ViewportFrame, camera: Camera)
+	local low, high = Vector3.one * math.huge, -Vector3.one * math.huge
+	for _, item in viewport:GetDescendants() do
+		if item:IsA("BasePart") then
+			local half = item.Size / 2
+			low = low:Min(item.Position - half)
+			high = high:Max(item.Position + half)
+		end
+	end
+	if low.X == math.huge then
 		return
 	end
-	local anchor = Instance.new("Part")
-	anchor.Anchored = true
-	anchor.CanCollide = false
-	anchor.CanQuery = false
-	anchor.Transparency = 1
-	anchor.Size = Vector3.one
-	anchor.Position = counter.Position + Vector3.new(0, 6, 0)
-	anchor.Parent = workspace
-	local a0 = Instance.new("Attachment")
-	a0.Parent = root
-	local a1 = Instance.new("Attachment")
-	a1.Parent = anchor
-	local beam = Instance.new("Beam")
-	beam.Attachment0 = a0
-	beam.Attachment1 = a1
-	beam.Color = ColorSequence.new(color)
-	beam.Width0 = 1.5
-	beam.Width1 = 1.5
-	beam.FaceCamera = true
-	beam.LightEmission = 0.8
-	beam.Parent = anchor
-	beam.Destroying:Connect(function()
-		a0:Destroy()
-	end)
-	local ends = os.clock() + 8
-	guide = { Beam = beam, Anchor = anchor, Ends = ends }
-	task.delay(8, function()
-		if guide and guide.Ends == ends then
-			guide.Anchor:Destroy()
-			guide = nil
-		end
-	end)
+	local centre = (low + high) / 2
+	local radius = (high - low).Magnitude / 2
+	local distance = radius / math.tan(math.rad(camera.FieldOfView / 2)) * 1.05
+	camera.CFrame = CFrame.lookAt(centre + Vector3.new(-0.75, 0.35, 0.55).Unit * distance, centre)
 end
 
-for i, stand in STANDS do
-	local row = Instance.new("Frame")
-	row.Name = stand.Kind
-	row.Position = UDim2.fromOffset(16, 70 + (i - 1) * 88)
-	row.Size = UDim2.new(1, -32, 0, 80)
-	row.BackgroundColor3 = Color3.fromRGB(55, 55, 78)
-	row.Parent = shopPanel
-	corner(row, UDim.new(0, 14))
-
-	local swatch = Instance.new("Frame")
-	swatch.Position = UDim2.fromOffset(10, 10)
-	swatch.Size = UDim2.fromOffset(60, 60)
-	swatch.BackgroundColor3 = stand.Color
-	swatch.Parent = row
-	corner(swatch, UDim.new(0, 12))
-
-	local level = label({
-		Position = UDim2.fromOffset(82, 8),
-		Size = UDim2.fromOffset(280, 34),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = row,
-	})
-	local effect = label({
-		Position = UDim2.fromOffset(82, 44),
-		Size = UDim2.fromOffset(280, 26),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = Color3.fromRGB(210, 210, 230),
-		Parent = row,
-	})
-	local price = label({ Position = UDim2.new(1, -310, 0, 22), Size = UDim2.fromOffset(160, 36), Parent = row })
-
-	local go = Instance.new("TextButton")
-	go.AnchorPoint = Vector2.new(1, 0.5)
-	go.Position = UDim2.new(1, -12, 0.5, 0)
-	go.Size = UDim2.fromOffset(130, 52)
-	go.BackgroundColor3 = stand.Color
-	go.Font = FONT
-	go.TextScaled = true
-	go.TextColor3 = Color3.new(1, 1, 1)
-	go.Text = "Show me"
-	go.Parent = row
-	corner(go, UDim.new(0, 12))
-	stroke(go, Color3.fromRGB(20, 20, 30), 3)
-	local goPadding = Instance.new("UIPadding")
-	goPadding.PaddingTop = UDim.new(0, 8)
-	goPadding.PaddingBottom = UDim.new(0, 8)
-	goPadding.Parent = go
-	go.Activated:Connect(function()
-		bounce(go)
-		showMeTheWay(stand.Kind, stand.Color)
-		shopPanel.Visible = false
-	end)
-
-	shopRows[stand.Kind] = { Level = level, Effect = effect, Price = price }
+local function makeButton(parent: Instance, position: UDim2, size: UDim2): TextButton
+	local button = Instance.new("TextButton")
+	button.Position = position
+	button.Size = size
+	button.Font = FONT
+	button.TextScaled = true
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Parent = parent
+	corner(button, UDim.new(0, 12))
+	stroke(button, Color3.fromRGB(20, 20, 30), 3)
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 8)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 6)
+	padding.PaddingRight = UDim.new(0, 6)
+	padding.Parent = button
+	return button
 end
 
--- Fills in the Shop rows and returns whether anything is affordable now.
-local function refreshShop(): boolean
-	local coins = attribute("Coins")
-	local anyAffordable = false
-	for _, stand in STANDS do
-		local row = shopRows[stand.Kind]
-		local cost: number?
-		if stand.Kind == "Rebirth" then
-			local rebirths = attribute("Rebirths")
-			cost = Economy.rebirthCost(rebirths)
-			row.Level.Text = `Rebirth {rebirths}`
-			row.Effect.Text = `Next: coins x{Format.number(Economy.rebirthMultiplier(rebirths + 1))}, keep your pets`
-		else
-			local level = attribute(Economy.UPGRADE_FIELDS[stand.Kind])
-			cost = Economy.upgradeCost(stand.Kind, level)
-			row.Level.Text = `{stand.Title}  Lv {level}`
-			if stand.Kind == "Slingshot" then
-				row.Effect.Text = `Power {math.floor(Economy.launchPower(level))} → {math.floor(Economy.launchPower(level + 1))}`
-			elseif stand.Kind == "Egg" then
-				row.Effect.Text = `Rare and up +{math.floor((Economy.eggBoost(level + 1) - 1) * 100 + 0.5)}%`
-			else
-				row.Effect.Text = `Mutations +{math.floor((Economy.luckBoost(level + 1) - 1) * 100 + 0.5)}%`
+-- Sets a buy button for something with this price (nil = nothing left to buy).
+local function setBuyButton(button: TextButton, cost: number?, coins: number)
+	if cost == nil then
+		button.Text = "Maxed"
+		button.BackgroundColor3 = Color3.fromRGB(110, 110, 130)
+		button.AutoButtonColor = false
+	elseif coins >= cost then
+		button.Text = `Buy {Format.coins(cost)}`
+		button.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
+		button.AutoButtonColor = true
+	else
+		button.Text = `{Format.coins(cost)} coins`
+		button.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+		button.AutoButtonColor = false
+	end
+end
+
+local function purchase(kind: string)
+	Remotes.Purchase:FireServer(kind)
+end
+
+-- One card per slingshot or egg: a picture, its name, what it does, and a button.
+type Card = { Button: TextButton, Frame: Frame }
+local cards: { [string]: { Card } } = { Slingshot = {}, Egg = {} }
+
+local function buildCards(kind: string, count: number, makeModel: (number) -> Instance, describe: (number) -> (string, string))
+	local list = Instance.new("ScrollingFrame")
+	list.Size = UDim2.fromScale(1, 1)
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.ScrollBarThickness = 8
+	list.ScrollingDirection = Enum.ScrollingDirection.X
+	list.AutomaticCanvasSize = Enum.AutomaticSize.X
+	list.CanvasSize = UDim2.new()
+	list.Parent = pages[kind]
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.Padding = UDim.new(0, 10)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = list
+
+	for level = 0, count - 1 do
+		local card = Instance.new("Frame")
+		card.LayoutOrder = level
+		card.Size = UDim2.fromOffset(CARD_SIZE.X, CARD_SIZE.Y)
+		card.BackgroundColor3 = Color3.fromRGB(55, 55, 78)
+		card.Parent = list
+		corner(card, UDim.new(0, 14))
+		local cardStroke = stroke(card, Color3.fromRGB(20, 20, 30), 3)
+		cardStroke.Name = "Outline"
+
+		local viewport = Instance.new("ViewportFrame")
+		viewport.Position = UDim2.fromOffset(5, 5)
+		viewport.Size = UDim2.fromOffset(CARD_SIZE.X - 10, CARD_SIZE.X - 10)
+		viewport.BackgroundColor3 = Color3.fromRGB(80, 80, 110)
+		viewport.Ambient = Color3.fromRGB(200, 200, 200)
+		viewport.LightDirection = Vector3.new(-1, -1, -0.5)
+		viewport.Parent = card
+		corner(viewport, UDim.new(0, 12))
+		local viewportCamera = Instance.new("Camera")
+		viewportCamera.FieldOfView = 40
+		viewportCamera.Parent = viewport
+		viewport.CurrentCamera = viewportCamera
+		makeModel(level).Parent = viewport
+		frameViewport(viewport, viewportCamera)
+
+		local name, effect = describe(level)
+		label({ Position = UDim2.fromOffset(6, CARD_SIZE.X + 2), Size = UDim2.new(1, -12, 0, 30), Text = name, Parent = card })
+		label({
+			Position = UDim2.fromOffset(6, CARD_SIZE.X + 34),
+			Size = UDim2.new(1, -12, 0, 26),
+			Text = effect,
+			TextColor3 = Color3.fromRGB(210, 210, 230),
+			Parent = card,
+		})
+		local button = makeButton(card, UDim2.new(0, 10, 1, -58), UDim2.new(1, -20, 0, 48))
+		button.Activated:Connect(function()
+			bounce(button)
+			if button.AutoButtonColor then
+				purchase(kind)
 			end
-		end
-		if cost then
-			local affordable = coins >= cost
-			anyAffordable = anyAffordable or affordable
-			row.Price.Text = `{Format.coins(cost)} coins`
-			row.Price.TextColor3 = if affordable then GOOD_COLOR else BAD_COLOR
+		end)
+		table.insert(cards[kind], { Button = button, Frame = card })
+	end
+end
+
+buildCards("Slingshot", #Config.Slingshots, function(level)
+	return SlingshotModel.buildTool(level)
+end, function(level)
+	local slingshot = Economy.slingshot(level)
+	return slingshot.Name, `Power x{Format.number(slingshot.Power)}`
+end)
+
+buildCards("Egg", #Config.Eggs, function(level)
+	return EggModel.build(level)
+end, function(level)
+	local egg = Economy.egg(level)
+	return egg.Name, `Rare+ odds x{Format.number(egg.Odds)}`
+end)
+
+-- Cards: owned ones say so, the one you have is outlined, the next one can be bought.
+local function refreshCards(kind: string, coins: number): boolean
+	local level = attribute(Economy.UPGRADE_FIELDS[kind])
+	local affordable = false
+	for i, card in cards[kind] do
+		local cardLevel = i - 1
+		local outline = card.Frame:FindFirstChild("Outline") :: UIStroke
+		outline.Color = if cardLevel == level then GOOD_COLOR else Color3.fromRGB(20, 20, 30)
+		outline.Thickness = if cardLevel == level then 5 else 3
+		if cardLevel <= level then
+			card.Button.Text = if cardLevel == level then "Equipped" else "Owned"
+			card.Button.BackgroundColor3 = Color3.fromRGB(110, 110, 130)
+			card.Button.AutoButtonColor = false
+		elseif cardLevel == level + 1 then
+			local cost = Economy.upgradeCost(kind, level)
+			setBuyButton(card.Button, cost, coins)
+			affordable = cost ~= nil and coins >= cost
 		else
-			row.Price.Text = "Max level"
-			row.Price.TextColor3 = Color3.new(1, 1, 1)
+			card.Button.Text = "Locked"
+			card.Button.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+			card.Button.AutoButtonColor = false
 		end
 	end
-	return anyAffordable
+	return affordable
+end
+
+-- Luck page: one upgrade with levels.
+local luckLevel = label({ Position = UDim2.fromOffset(20, 30), Size = UDim2.new(1, -40, 0, 50), Parent = pages.Luck })
+local luckEffect = label({
+	Position = UDim2.fromOffset(20, 90),
+	Size = UDim2.new(1, -40, 0, 34),
+	TextColor3 = Color3.fromRGB(210, 210, 230),
+	Parent = pages.Luck,
+})
+local luckButton = makeButton(pages.Luck, UDim2.new(0.5, -120, 0, 160), UDim2.fromOffset(240, 64))
+luckButton.Activated:Connect(function()
+	bounce(luckButton)
+	if luckButton.AutoButtonColor then
+		purchase("Luck")
+	end
+end)
+
+-- Rebirth page: tap once to see the warning, tap again to rebirth.
+local rebirthInfo = label({ Position = UDim2.fromOffset(20, 20), Size = UDim2.new(1, -40, 0, 50), Parent = pages.Rebirth })
+label({
+	Position = UDim2.fromOffset(20, 80),
+	Size = UDim2.new(1, -40, 0, 60),
+	Text = "Resets your coins, slingshot, egg and Luck. You keep all your pets.",
+	TextColor3 = Color3.fromRGB(210, 210, 230),
+	Parent = pages.Rebirth,
+})
+local rebirthButton = makeButton(pages.Rebirth, UDim2.new(0.5, -130, 0, 170), UDim2.fromOffset(260, 64))
+local rebirthArmedAt = 0
+rebirthButton.Activated:Connect(function()
+	bounce(rebirthButton)
+	if not rebirthButton.AutoButtonColor then
+		return
+	end
+	if os.clock() - rebirthArmedAt < 3 then
+		rebirthArmedAt = 0
+		purchase("Rebirth")
+	else
+		rebirthArmedAt = os.clock()
+		rebirthButton.Text = "Tap again!"
+		task.delay(3, function()
+			refreshShop()
+		end)
+	end
+end)
+
+-- Fills in every page and returns whether anything is affordable now.
+refreshShop = function(): boolean
+	local coins = attribute("Coins")
+	local anyAffordable = refreshCards("Slingshot", coins)
+	anyAffordable = refreshCards("Egg", coins) or anyAffordable
+
+	local level = attribute("LuckLevel")
+	local luckCost = Economy.upgradeCost("Luck", level)
+	luckLevel.Text = `Luck level {level} of {Economy.maxLevel("Luck")}`
+	luckEffect.Text = `Mutations +{math.floor((Economy.luckBoost(level) - 1) * 100 + 0.5)}% now, +{math.floor(
+		(Economy.luckBoost(level + 1) - 1) * 100 + 0.5
+	)}% next`
+	setBuyButton(luckButton, luckCost, coins)
+	anyAffordable = anyAffordable or (luckCost ~= nil and coins >= luckCost)
+
+	local rebirths = attribute("Rebirths")
+	local rebirthCost = Economy.rebirthCost(rebirths)
+	rebirthInfo.Text = `Rebirth {rebirths + 1}: coins x{Format.number(Economy.rebirthMultiplier(rebirths + 1))}`
+	if os.clock() - rebirthArmedAt >= 3 then
+		setBuyButton(rebirthButton, rebirthCost, coins)
+		if rebirthButton.AutoButtonColor then
+			rebirthButton.Text = `Rebirth {Format.coins(rebirthCost)}`
+		end
+	end
+	return anyAffordable or coins >= rebirthCost
 end
 
 local function refreshShopAndBadge()
@@ -603,8 +754,27 @@ for _, name in { "Coins", "SlingshotLevel", "EggLevel", "LuckLevel", "Rebirths",
 end
 refreshShopAndBadge()
 
+local function openShop(kind: string?)
+	refreshShop()
+	showTab(kind or "Slingshot")
+	if not shopPanel.Visible then
+		openPanel(shopPanel, shopScale)
+	end
+end
+
 shopButton.Activated:Connect(function()
 	bounce(shopButton)
-	refreshShop()
-	openPanel(shopPanel, shopScale)
+	if shopPanel.Visible then
+		shopPanel.Visible = false
+	else
+		openShop(nil)
+	end
+end)
+
+-- The stands in the hub open the Shop on their own page.
+ProximityPromptService.PromptTriggered:Connect(function(prompt)
+	local kind = prompt:GetAttribute("Kind")
+	if typeof(kind) == "string" and pages[kind] then
+		openShop(kind)
+	end
 end)

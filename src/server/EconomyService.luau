@@ -1,6 +1,6 @@
 --!strict
 -- Coins: pays each player's pet income every second, and handles everything coins
--- buy: the Slingshot, Egg and Luck stands in the hub, pedestals on your own plot,
+-- buy: slingshots, eggs and Luck from the Shop menu, pedestals on your own plot,
 -- and rebirth. Also copies each player's data into attributes and leaderstats so
 -- clients can show it.
 
@@ -89,7 +89,7 @@ local function buyUpgrade(player: Player, kind: string)
 	local level = (data :: any)[field] :: number
 	local cost = Economy.upgradeCost(kind, level)
 	if not cost then
-		EconomyService.notify(player, `{kind} is at max level!`, "info")
+		EconomyService.notify(player, "You already have the best one!", "info")
 		return
 	end
 	if not spend(player, data, cost) then
@@ -97,7 +97,13 @@ local function buyUpgrade(player: Player, kind: string)
 	end
 	(data :: any)[field] = level + 1
 	EconomyService.publish(player)
-	EconomyService.notify(player, `{kind} level {level + 1}!`, "good")
+	if kind == "Slingshot" then
+		EconomyService.notify(player, `You got the {Economy.slingshot(level + 1).Name}!`, "good")
+	elseif kind == "Egg" then
+		EconomyService.notify(player, `You got the {Economy.egg(level + 1).Name}!`, "good")
+	else
+		EconomyService.notify(player, `{kind} level {level + 1}!`, "good")
+	end
 end
 
 local function buyPedestal(player: Player)
@@ -143,22 +149,12 @@ local function rebirth(player: Player)
 	EconomyService.notify(player, `Rebirth {data.Rebirths}! Coins x{Format.number(multiplier)}`, "rebirth")
 end
 
-local function hookStands()
-	local map = workspace:WaitForChild("Map")
-	local hub = map:WaitForChild("Hub")
-	for _, stand in hub:GetChildren() do
-		local counter = stand:FindFirstChild("Counter")
-		local prompt = counter and counter:FindFirstChild("Prompt")
-		if prompt and prompt:IsA("ProximityPrompt") then
-			local kind = prompt:GetAttribute("Kind")
-			prompt.Triggered:Connect(function(player)
-				if kind == "Rebirth" then
-					rebirth(player)
-				elseif typeof(kind) == "string" then
-					buyUpgrade(player, kind)
-				end
-			end)
-		end
+-- Buttons in the Shop menu. The hub stands just open the Shop on the client.
+local function onPurchase(player: Player, kind: unknown)
+	if kind == "Rebirth" then
+		rebirth(player)
+	elseif typeof(kind) == "string" and Economy.UPGRADE_FIELDS[kind] then
+		buyUpgrade(player, kind)
 	end
 end
 
@@ -179,7 +175,7 @@ function EconomyService.init()
 	end
 	DataService.Ready:Connect(onReady)
 	PlotService.BuyPedestalRequested:Connect(buyPedestal)
-	hookStands()
+	Remotes.Purchase.OnServerEvent:Connect(onPurchase)
 
 	task.spawn(function()
 		while true do

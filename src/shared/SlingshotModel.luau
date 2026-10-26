@@ -1,20 +1,25 @@
 --!strict
--- The slingshot item every player carries: a Y-shaped wooden fork with a
--- candy-striped grip, pink tips, two elastic bands and a leather pouch.
+-- The slingshot item every player carries: a Y-shaped fork with a striped
+-- grip, round tips, two elastic bands and a leather pouch, coloured for
+-- whichever slingshot the player owns (Config.Slingshots).
 -- It's a Tool, so it sits in the player's hand. Shared so the server can
--- build it and the client can pull the pouch back while charging (the pull
--- is local to that player).
+-- build it, the client can pull the pouch back while charging (the pull
+-- is local to that player), and the Shop can show a picture of each one.
+-- A Tool with the slingshot's name in ReplicatedStorage.SlingshotModels is
+-- used instead of the built-in model, so real models can be dropped in.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Economy = require(script.Parent.Economy)
 
 local SlingshotModel = {}
 
 SlingshotModel.NAME = "Slingshot"
+SlingshotModel.CUSTOM_FOLDER = "SlingshotModels"
 
 local SCALE = 0.4 -- the shape below is drawn 13 studs tall; this sizes it for a hand
 
-local WOOD = Color3.fromRGB(176, 122, 78)
-local CANDY_PINK = Color3.fromRGB(255, 120, 160)
-local CANDY_WHITE = Color3.fromRGB(255, 245, 250)
-local BAND_COLOR = Color3.fromRGB(235, 60, 110)
+local STRIPE_WHITE = Color3.fromRGB(255, 245, 250)
 local LEATHER = Color3.fromRGB(120, 72, 40)
 
 -- Points in the slingshot's own space, before SCALE: +X is forward (where the
@@ -43,11 +48,11 @@ local function rodFrame(a: Vector3, b: Vector3, diameter: number): (CFrame, Vect
 	return frame, Vector3.new(length, diameter, diameter)
 end
 
-local function newPart(name: string, color: Color3, parent: Instance): Part
+local function newPart(name: string, color: Color3, parent: Instance, material: Enum.Material?): Part
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Color = color
-	p.Material = Enum.Material.SmoothPlastic
+	p.Material = material or Enum.Material.SmoothPlastic
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Anchored = false
@@ -58,8 +63,8 @@ local function newPart(name: string, color: Color3, parent: Instance): Part
 	return p
 end
 
-local function rod(name: string, a: Vector3, b: Vector3, diameter: number, color: Color3, parent: Instance): Part
-	local p = newPart(name, color, parent)
+local function rod(name: string, a: Vector3, b: Vector3, diameter: number, color: Color3, parent: Instance, material: Enum.Material?): Part
+	local p = newPart(name, color, parent, material)
 	p.Shape = Enum.PartType.Cylinder
 	local frame, size = rodFrame(scaled(a), scaled(b), diameter * SCALE)
 	p.Size = size
@@ -67,8 +72,8 @@ local function rod(name: string, a: Vector3, b: Vector3, diameter: number, color
 	return p
 end
 
-local function ball(name: string, at: Vector3, diameter: number, color: Color3, parent: Instance): Part
-	local p = newPart(name, color, parent)
+local function ball(name: string, at: Vector3, diameter: number, color: Color3, parent: Instance, material: Enum.Material?): Part
+	local p = newPart(name, color, parent, material)
 	p.Shape = Enum.PartType.Ball
 	p.Size = Vector3.one * diameter * SCALE
 	p.CFrame = CFrame.new(scaled(at))
@@ -84,32 +89,53 @@ local function weldToHandle(handle: BasePart, p: BasePart)
 	weld.Parent = p
 end
 
--- Builds a new slingshot Tool. All parts are made in the slingshot's own
--- space and welded to the handle.
-function SlingshotModel.buildTool(): Tool
+-- A real model for this slingshot from ReplicatedStorage.SlingshotModels, if one was added.
+local function customTool(name: string): Tool?
+	local folder = ReplicatedStorage:FindFirstChild(SlingshotModel.CUSTOM_FOLDER)
+	local custom = folder and folder:FindFirstChild(name)
+	if custom and custom:IsA("Tool") then
+		local tool = custom:Clone()
+		tool.Name = SlingshotModel.NAME
+		tool.CanBeDropped = false
+		tool.ToolTip = name
+		return tool
+	end
+	return nil
+end
+
+-- Builds the slingshot Tool for a slingshot level (0 = the first slingshot).
+-- All parts are made in the slingshot's own space and welded to the handle.
+function SlingshotModel.buildTool(level: number?): Tool
+	local look = Economy.slingshot(level or 0)
+	local custom = customTool(look.Name)
+	if custom then
+		return custom
+	end
+
 	local tool = Instance.new("Tool")
 	tool.Name = SlingshotModel.NAME
 	tool.CanBeDropped = false
-	tool.ToolTip = "Hold to launch an egg"
+	tool.ToolTip = look.Name
 
-	local handle = rod("Handle", Vector3.zero, FORK, 1.6, WOOD, tool)
+	local frameColor, accent, material = look.Frame, look.Accent, look.Material
+	local handle = rod("Handle", Vector3.zero, FORK, 1.6, frameColor, tool, material)
 
 	local parts: { BasePart } = {}
 	for i, y in { 1.4, 2.6, 3.8 } do
 		table.insert(parts, rod("Grip" .. i, Vector3.new(0, y, 0), Vector3.new(0, y + 0.6, 0), 1.9,
-			if i % 2 == 1 then CANDY_PINK else CANDY_WHITE, tool))
+			if i % 2 == 1 then accent else STRIPE_WHITE, tool))
 	end
-	table.insert(parts, ball("Joint", FORK, 2, WOOD, tool))
-	table.insert(parts, rod("ArmLeft", FORK, TIP_LEFT, 1.3, WOOD, tool))
-	table.insert(parts, rod("ArmRight", FORK, TIP_RIGHT, 1.3, WOOD, tool))
-	table.insert(parts, ball("TipLeft", TIP_LEFT, 1.7, CANDY_PINK, tool))
-	table.insert(parts, ball("TipRight", TIP_RIGHT, 1.7, CANDY_PINK, tool))
+	table.insert(parts, ball("Joint", FORK, 2, frameColor, tool, material))
+	table.insert(parts, rod("ArmLeft", FORK, TIP_LEFT, 1.3, frameColor, tool, material))
+	table.insert(parts, rod("ArmRight", FORK, TIP_RIGHT, 1.3, frameColor, tool, material))
+	table.insert(parts, ball("TipLeft", TIP_LEFT, 1.7, accent, tool))
+	table.insert(parts, ball("TipRight", TIP_RIGHT, 1.7, accent, tool))
 
 	local pouch = newPart("Pouch", LEATHER, tool)
 	pouch.Size = Vector3.new(0.8, 1.4, 2.4) * SCALE
 	table.insert(parts, pouch)
 	for _, name in { "BandLeft", "BandRight" } do
-		local band = newPart(name, BAND_COLOR, tool)
+		local band = newPart(name, look.Band, tool)
 		band.Shape = Enum.PartType.Cylinder
 		table.insert(parts, band)
 	end

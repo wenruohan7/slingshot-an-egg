@@ -84,16 +84,34 @@ corner(button, UDim.new(1, 0))
 local buttonScale = Instance.new("UIScale")
 buttonScale.Parent = button
 
--- Vertical meter on the right, one coloured band per stage.
+-- Vertical meter on the right: a framed bar whose colours blend from Poor at
+-- the bottom to Perfect at the top, with faint lines where the stages meet.
 local meter = Instance.new("Frame")
 meter.Name = "Meter"
 meter.AnchorPoint = Vector2.new(1, 0.5)
 meter.Position = UDim2.new(1, -220, 0.5, 0)
-meter.Size = UDim2.fromOffset(40, 300)
-meter.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+meter.Size = UDim2.fromOffset(60, 330)
+meter.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
 meter.Visible = false
 meter.Parent = gui
-corner(meter, UDim.new(0, 12))
+corner(meter, UDim.new(0, 18))
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Color = Color3.new(1, 1, 1)
+frameStroke.Thickness = 4
+frameStroke.Parent = meter
+
+local bar = Instance.new("Frame")
+bar.Name = "Bar"
+bar.AnchorPoint = Vector2.new(0.5, 0.5)
+bar.Position = UDim2.fromScale(0.5, 0.5)
+bar.Size = UDim2.new(1, -18, 1, -18)
+bar.BackgroundColor3 = Color3.new(1, 1, 1)
+bar.Parent = meter
+corner(bar, UDim.new(0, 10))
+local barStroke = Instance.new("UIStroke")
+barStroke.Color = Color3.fromRGB(20, 20, 30)
+barStroke.Thickness = 2
+barStroke.Parent = bar
 
 -- On phones, keep the button and meter clear of the jump button, which sits
 -- within about 230 px of the bottom-right corner in every layout.
@@ -104,24 +122,42 @@ if UserInputService.TouchEnabled then
 end
 
 local stages = Config.Charge.Stages
-for i, stage in stages do
+
+-- Each stage's colour sits at the middle of its band, and the gradient blends between them.
+local keypoints = { ColorSequenceKeypoint.new(0, stages[#stages].Color) }
+for i = #stages, 1, -1 do
+	local stage = stages[i]
 	local top = if i == 1 then 1 else stages[i - 1].Min
-	local band = Instance.new("Frame")
-	band.Name = stage.Name
-	band.BorderSizePixel = 0
-	band.BackgroundColor3 = stage.Color
-	band.Position = UDim2.fromScale(0, 1 - top)
-	band.Size = UDim2.fromScale(1, top - stage.Min)
-	band.Parent = meter
+	table.insert(keypoints, ColorSequenceKeypoint.new((stage.Min + top) / 2, stage.Color))
+	if stage.Min > 0 then
+		local line = Instance.new("Frame")
+		line.Name = stage.Name .. "Line"
+		line.AnchorPoint = Vector2.new(0, 0.5)
+		line.Position = UDim2.fromScale(0, 1 - stage.Min)
+		line.Size = UDim2.new(1, 0, 0, 2)
+		line.BorderSizePixel = 0
+		line.BackgroundColor3 = Color3.new(1, 1, 1)
+		line.BackgroundTransparency = 0.5
+		line.Parent = bar
+	end
 end
+table.insert(keypoints, ColorSequenceKeypoint.new(1, stages[1].Color))
+local gradient = Instance.new("UIGradient")
+gradient.Color = ColorSequence.new(keypoints)
+gradient.Rotation = -90 -- 0 at the bottom, 1 at the top, like the needle
+gradient.Parent = bar
 
 local needle = Instance.new("Frame")
 needle.Name = "Needle"
 needle.AnchorPoint = Vector2.new(0.5, 0.5)
-needle.Size = UDim2.new(1, 16, 0, 8)
+needle.Size = UDim2.new(1, 22, 0, 10)
 needle.BackgroundColor3 = Color3.new(1, 1, 1)
 needle.ZIndex = 2
-needle.Parent = meter
+needle.Parent = bar
+local needleStroke = Instance.new("UIStroke")
+needleStroke.Color = Color3.fromRGB(20, 20, 30)
+needleStroke.Thickness = 2
+needleStroke.Parent = needle
 corner(needle, UDim.new(1, 0))
 
 local stagePopup = label({

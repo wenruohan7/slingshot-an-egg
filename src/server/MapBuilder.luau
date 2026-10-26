@@ -10,7 +10,7 @@ local Lane = require(Shared.Lane)
 
 local MapBuilder = {}
 
-MapBuilder.PLOT_COUNT = 5
+MapBuilder.PLOT_COUNT = 4 -- one per player; servers hold 4
 
 -- Pedestal spots on a plot, relative to the plot's centre, in fill order
 -- (front row nearest the lane first).
@@ -31,7 +31,7 @@ MapBuilder.STANDS = {
 }
 
 local PLOT_X = -150
-local PLOT_SPACING = 40
+local PLOT_SPACING = 46
 
 -- Two greens for the checkered, studded hub floor.
 local FLOOR_COLORS = { Color3.fromRGB(118, 205, 72), Color3.fromRGB(104, 190, 62) }
@@ -43,7 +43,8 @@ local WOOD_COLOR = Color3.fromRGB(170, 120, 80)
 local WALL_COLORS = { Color3.fromRGB(215, 150, 95), Color3.fromRGB(190, 125, 75) }
 local WALL_HEIGHT = 24
 local WALL_THICKNESS = 4
-local WALL_TILE = Vector2.new(20, 12) -- width and height of each wall square
+local WALL_TILE = Vector2.new(20, 12) -- width and height of each wall square around the hub
+local LANE_WALL_TILE = Vector2.new(50, 24) -- bigger squares along the long lane, to keep the part count down
 
 -- Plot fences: dark posts with orange rails and cross braces.
 local FENCE_POST_COLOR = Color3.fromRGB(85, 60, 45)
@@ -148,17 +149,18 @@ end
 
 -- A checkered wall from `a` to `b` (on the ground, wall centre line), with grass on top.
 -- Each square's length runs along its Z axis, which lookAt points down the wall.
-local function wallRun(parent: Instance, a: Vector3, b: Vector3)
+local function wallRun(parent: Instance, a: Vector3, b: Vector3, tile: Vector2?)
+	local size = tile or WALL_TILE
 	local length = (b - a).Magnitude
-	local columns = math.ceil(length / WALL_TILE.X)
-	local rows = math.ceil(WALL_HEIGHT / WALL_TILE.Y)
+	local columns = math.ceil(length / size.X)
+	local rows = math.ceil(WALL_HEIGHT / size.Y)
 	local direction = (b - a).Unit
 	for col = 0, columns - 1 do
-		local s0 = col * WALL_TILE.X
-		local s1 = math.min(s0 + WALL_TILE.X, length)
+		local s0 = col * size.X
+		local s1 = math.min(s0 + size.X, length)
 		for row = 0, rows - 1 do
-			local y0 = row * WALL_TILE.Y
-			local y1 = math.min(y0 + WALL_TILE.Y, WALL_HEIGHT)
+			local y0 = row * size.Y
+			local y1 = math.min(y0 + size.Y, WALL_HEIGHT)
 			local centre = a + direction * ((s0 + s1) / 2) + Vector3.new(0, (y0 + y1) / 2, 0)
 			part({
 				Name = "Wall",
@@ -269,8 +271,8 @@ local function buildStand(parent: Instance, kind: string, title: string, positio
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "Prompt"
 	prompt.ObjectText = title
-	prompt.ActionText = if kind == "Rebirth" then "Rebirth" else "Upgrade"
-	prompt.HoldDuration = if kind == "Rebirth" then 1.5 else 0
+	prompt.ActionText = "Open shop" -- the client opens the Shop on this stand's page
+	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = false
 	prompt:SetAttribute("Kind", kind)
@@ -341,6 +343,17 @@ local function buildLane(map: Folder)
 	laneFolder.Name = "Lane"
 	laneFolder.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	laneFolder.Parent = map
+
+	-- Walls down both sides of the lane and across its far end, joining the hub's walls.
+	local laneEnd = Config.Lane.StartX + Lane.Length
+	local wallZ = Config.Lane.Width / 2 + WALL_THICKNESS / 2
+	local laneWalls = Instance.new("Folder")
+	laneWalls.Name = "Walls"
+	wallRun(laneWalls, Vector3.new(Config.Lane.StartX, 0, -wallZ), Vector3.new(laneEnd, 0, -wallZ), LANE_WALL_TILE)
+	wallRun(laneWalls, Vector3.new(Config.Lane.StartX, 0, wallZ), Vector3.new(laneEnd, 0, wallZ), LANE_WALL_TILE)
+	local endX = laneEnd + WALL_THICKNESS / 2
+	wallRun(laneWalls, Vector3.new(endX, 0, -wallZ - WALL_THICKNESS / 2), Vector3.new(endX, 0, wallZ + WALL_THICKNESS / 2), LANE_WALL_TILE)
+	laneWalls.Parent = laneFolder
 
 	local length = Config.Lane.ZoneLength
 	for i, zone in Config.Zones do

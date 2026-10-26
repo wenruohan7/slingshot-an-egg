@@ -79,10 +79,42 @@ Config.Plot = {
 	MaxPets = 200, -- inventory size
 }
 
--- Upgrade prices: Cost * Growth ^ level. MaxLevel caps each upgrade.
+-- Slingshots, bought one after another in the Shop. Each one is a new item in
+-- your hand. Power multiplies Slingshot.BasePower. Frame, Accent, Band and
+-- Material colour the built-in model; a real model with the same Name in
+-- ReplicatedStorage.SlingshotModels replaces it (see the README).
+Config.Slingshots = {
+	{ Name = "Wooden Slingshot", Power = 1, Cost = 0, Frame = Color3.fromRGB(176, 122, 78), Accent = Color3.fromRGB(255, 120, 160), Band = Color3.fromRGB(235, 60, 110), Material = Enum.Material.Wood },
+	{ Name = "Sturdy Slingshot", Power = 1.16, Cost = 60, Frame = Color3.fromRGB(120, 80, 50), Accent = Color3.fromRGB(240, 240, 240), Band = Color3.fromRGB(60, 60, 60), Material = Enum.Material.Wood },
+	{ Name = "Leafy Slingshot", Power = 1.35, Cost = 200, Frame = Color3.fromRGB(100, 160, 70), Accent = Color3.fromRGB(255, 220, 90), Band = Color3.fromRGB(80, 200, 90), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Iron Slingshot", Power = 1.57, Cost = 600, Frame = Color3.fromRGB(150, 155, 165), Accent = Color3.fromRGB(70, 75, 85), Band = Color3.fromRGB(40, 40, 45), Material = Enum.Material.Metal },
+	{ Name = "Candy Slingshot", Power = 1.82, Cost = 1500, Frame = Color3.fromRGB(255, 150, 200), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(120, 210, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Golden Slingshot", Power = 2.1, Cost = 4000, Frame = Color3.fromRGB(255, 200, 60), Accent = Color3.fromRGB(255, 240, 160), Band = Color3.fromRGB(200, 40, 40), Material = Enum.Material.Foil },
+	{ Name = "Ice Slingshot", Power = 2.45, Cost = 10000, Frame = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(80, 160, 255), Material = Enum.Material.Ice },
+	{ Name = "Lava Slingshot", Power = 2.85, Cost = 25000, Frame = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 110, 30), Band = Color3.fromRGB(255, 170, 40), Material = Enum.Material.Basalt },
+	{ Name = "Crystal Slingshot", Power = 3.3, Cost = 60000, Frame = Color3.fromRGB(190, 140, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(150, 90, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow Slingshot", Power = 3.85, Cost = 150000, Frame = Color3.fromRGB(255, 120, 200), Accent = Color3.fromRGB(120, 230, 255), Band = Color3.fromRGB(255, 230, 80), Material = Enum.Material.Neon },
+	{ Name = "Galaxy Slingshot", Power = 4.5, Cost = 400000, Frame = Color3.fromRGB(60, 30, 120), Accent = Color3.fromRGB(150, 220, 255), Band = Color3.fromRGB(255, 120, 255), Material = Enum.Material.Neon },
+	{ Name = "Moon Slingshot", Power = 5.3, Cost = 1000000, Frame = Color3.fromRGB(230, 230, 245), Accent = Color3.fromRGB(255, 230, 120), Band = Color3.fromRGB(140, 160, 255), Material = Enum.Material.Marble },
+}
+
+-- Eggs, bought one after another in the Shop. Each one changes the egg you
+-- launch. Odds multiplies the drop rates of Rare and up. A real model (a
+-- MeshPart) with the same Name in ReplicatedStorage.EggModels replaces the
+-- built-in look.
+Config.Eggs = {
+	{ Name = "Plain Egg", Odds = 1, Cost = 0, Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Mint Egg", Odds = 1.15, Cost = 150, Color = Color3.fromRGB(170, 240, 200), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Sky Egg", Odds = 1.3, Cost = 600, Color = Color3.fromRGB(140, 200, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Golden Egg", Odds = 1.5, Cost = 2500, Color = Color3.fromRGB(255, 205, 60), Material = Enum.Material.Foil },
+	{ Name = "Crystal Egg", Odds = 1.75, Cost = 10000, Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow Egg", Odds = 2, Cost = 40000, Color = Color3.fromRGB(255, 130, 210), Material = Enum.Material.Neon },
+	{ Name = "Galaxy Egg", Odds = 2.4, Cost = 150000, Color = Color3.fromRGB(90, 50, 180), Material = Enum.Material.Neon },
+	{ Name = "Divine Egg", Odds = 3, Cost = 600000, Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon },
+}
+
+-- Other upgrades: price is Cost * Growth ^ level. MaxLevel caps each one.
 Config.Upgrades = {
-	Slingshot = { Cost = 50, Growth = 1.55, MaxLevel = 40 },
-	Egg = { Cost = 100, Growth = 1.8, MaxLevel = 20, OddsPerLevel = 0.08 }, -- boosts Rare and up
 	Luck = { Cost = 150, Growth = 1.9, MaxLevel = 20, LuckPerLevel = 0.1 }, -- boosts mutations
 	Pedestal = { Cost = 100, Growth = 2.2 }, -- price of the next pedestal past the starting ones
 }
@@ -91,7 +123,7 @@ Config.Rebirth = {
 	Cost = 25000,
 	Growth = 3,
 	CoinBonus = 0.25, -- +25% coins per rebirth
-	-- Rebirth resets coins and the Slingshot, Egg and Luck upgrades and keeps pets.
+	-- Rebirth resets coins, slingshots, eggs and Luck, and keeps pets.
 	-- Bought pedestals are kept too, so a rebirth never lowers income; set this to
 	-- false to reset them to StartPedestals as well.
 	KeepPedestals = true,
@@ -117,11 +149,9 @@ Config.Charge = {
 	},
 }
 
--- Slingshot launch power, in studs flown at Power = 1.
--- Each slingshot upgrade level multiplies it by LevelGrowth.
+-- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
 Config.Slingshot = {
-	BasePower = 320, -- level 0: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
-	LevelGrowth = 1.12,
+	BasePower = 320, -- first slingshot: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 }
 
 return Config
