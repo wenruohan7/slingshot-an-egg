@@ -19,7 +19,6 @@ export type Data = {
 	Discovered: { [string]: boolean }, -- every pet id ever hatched, for the Index
 	SlingshotLevel: number,
 	EggLevel: number,
-	LuckLevel: number,
 	Pedestals: number,
 	Rebirths: number,
 	LastOnline: number,
@@ -45,7 +44,6 @@ local function defaults(): Data
 		Discovered = {},
 		SlingshotLevel = 0,
 		EggLevel = 0,
-		LuckLevel = 0,
 		Pedestals = Config.Plot.StartPedestals,
 		Rebirths = 0,
 		LastOnline = os.time(),

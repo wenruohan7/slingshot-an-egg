@@ -54,5 +54,5 @@ Progress is saved with DataStores. To test saving in Studio, turn on **Game Sett
 - [x] 2. Slingshot item, charge meter with 6 stages, launch, landing zone
 - [x] 3. Hatching with the drop rates and mutations, pets on pedestals, coins
 - [x] 4. Saving player data, offline coins
-- [x] 5. Shops in the hub (stand in a shop's zone to open it): 12 slingshots, 8 eggs, Luck, rebirth; pedestal buying; Robux shop
+- [x] 5. Shops in the hub (stand in a shop's circle to open it): 12 slingshots, 8 eggs with Luck up to 1000x, rebirth; pedestal buying; Robux shop
 - [ ] 6. Animations, effects and real art (first pass done: slingshot pull and launch pose, hatch, beam, confetti, coin pops, pet bounce)

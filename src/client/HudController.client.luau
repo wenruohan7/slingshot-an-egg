@@ -288,12 +288,17 @@ player:GetAttributeChangedSignal("DataLoaded"):Connect(onDataLoaded)
 onDataLoaded()
 
 --------------------------------------------------------------------------------
--- Prompts: only your own pedestal prompt shows
+-- Prompts: only your own pedestal prompt shows. Shop circles pulse.
 --------------------------------------------------------------------------------
+
+local ZONE_PULSE = TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
 
 local function watchPrompt(instance: Instance)
 	if instance:IsA("ProximityPrompt") and instance:GetAttribute("Kind") == "Pedestal" then
 		instance.Enabled = instance:GetAttribute("OwnerUserId") == player.UserId
+	elseif instance:IsA("BasePart") and instance.Name == "Zone" and instance:GetAttribute("Kind") ~= nil then
+		-- Shop circles glow brighter and dimmer, forever.
+		TweenService:Create(instance, ZONE_PULSE, { Transparency = 0.6 }):Play()
 	end
 end
 

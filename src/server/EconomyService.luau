@@ -1,6 +1,6 @@
 --!strict
 -- Coins: pays each player's pet income every second, and handles everything coins
--- buy: slingshots, eggs and Luck at the shops in the hub, pedestals on your own plot,
+-- buy: slingshots and eggs at the shops in the hub, pedestals on your own plot,
 -- and rebirth. Also copies each player's data into attributes and leaderstats so
 -- clients can show it.
 
@@ -47,7 +47,6 @@ function EconomyService.publish(player: Player)
 	player:SetAttribute("Income", income)
 	player:SetAttribute("SlingshotLevel", data.SlingshotLevel)
 	player:SetAttribute("EggLevel", data.EggLevel)
-	player:SetAttribute("LuckLevel", data.LuckLevel)
 	player:SetAttribute("Pedestals", data.Pedestals)
 	player:SetAttribute("Rebirths", data.Rebirths)
 	player:SetAttribute("PetCount", #data.Pets)
@@ -145,7 +144,6 @@ local function rebirth(player: Player)
 	data.Coins = 0
 	data.SlingshotLevel = 0
 	data.EggLevel = 0
-	data.LuckLevel = 0
 	if not Config.Rebirth.KeepPedestals then
 		data.Pedestals = Config.Plot.StartPedestals
 	end

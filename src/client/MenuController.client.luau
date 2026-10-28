@@ -93,7 +93,7 @@ if UserInputService.TouchEnabled then
 	small.Parent = menu
 end
 
-local function menuButton(name: string, icon: string, color: Color3, y: number): (TextButton, TextLabel)
+local function menuButton(name: string, color: Color3, y: number): (TextButton, TextLabel)
 	local button = Instance.new("TextButton")
 	button.Name = name
 	button.Position = UDim2.fromOffset(0, y)
@@ -105,17 +105,10 @@ local function menuButton(name: string, icon: string, color: Color3, y: number):
 	corner(button, UDim.new(0, 14))
 	stroke(button, Color3.fromRGB(20, 20, 30), 4)
 
-	label({
-		Position = UDim2.fromOffset(10, 8),
-		Size = UDim2.fromOffset(58, 58),
-		Text = icon,
-		Parent = button,
-	})
 	local text = label({
-		Position = UDim2.fromOffset(72, 12),
-		Size = UDim2.new(1, -82, 1, -24),
+		Position = UDim2.fromOffset(14, 12),
+		Size = UDim2.new(1, -28, 1, -24),
 		Text = name,
-		TextXAlignment = Enum.TextXAlignment.Left,
 		TextStrokeTransparency = 1,
 		Parent = button,
 	})
@@ -144,8 +137,8 @@ local function menuButton(name: string, icon: string, color: Color3, y: number):
 	return button, badge
 end
 
-local shopButton = menuButton("Shop", "💎", Color3.fromRGB(80, 210, 70), 0) -- the Robux shop
-local indexButton, indexBadge = menuButton("Index", "📖", Color3.fromRGB(60, 170, 255), 90)
+local shopButton = menuButton("Shop", Color3.fromRGB(80, 210, 70), 0) -- the Robux shop
+local indexButton, indexBadge = menuButton("Index", Color3.fromRGB(60, 170, 255), 90)
 
 --------------------------------------------------------------------------------
 -- Hint line along the top
@@ -189,10 +182,8 @@ local function currentHint(): string?
 		if level and cost and coins >= cost then
 			if shop.Kind == "Slingshot" then
 				return `Visit the {shop.Title} to buy the {Economy.slingshot(level + 1).Name}!`
-			elseif shop.Kind == "Egg" then
-				return `Visit the {shop.Title} to buy the {Economy.egg(level + 1).Name}!`
 			end
-			return `Visit the {shop.Title} to raise your Luck!`
+			return `Visit the {shop.Title} to buy the {Economy.egg(level + 1).Name}!`
 		end
 	end
 	return "Launch farther to hatch rarer pets!"
@@ -654,7 +645,7 @@ buildCards("Egg", #Config.Eggs, function(level)
 	return EggModel.build(level)
 end, function(level)
 	local egg = Economy.egg(level)
-	return egg.Name, `Rare+ odds x{Format.number(egg.Odds)}`
+	return egg.Name, `{egg.Luck}x Luck`
 end)
 
 -- Owned cards say so, the one you have is outlined green, the next one can be bought.
@@ -684,28 +675,12 @@ local function scrollToCurrent(kind: string)
 	end
 end
 
--- Luck page: one upgrade with levels.
-local luckLevel = label({ Position = UDim2.fromOffset(20, 30), Size = UDim2.new(1, -40, 0, 50), Parent = pages.Luck })
-local luckEffect = label({
-	Position = UDim2.fromOffset(20, 90),
-	Size = UDim2.new(1, -40, 0, 34),
-	TextColor3 = DIM_TEXT,
-	Parent = pages.Luck,
-})
-local luckButton = makeButton(pages.Luck, UDim2.new(0.5, -120, 0, 160), UDim2.fromOffset(240, 64))
-luckButton.Activated:Connect(function()
-	bounce(luckButton)
-	if luckButton.AutoButtonColor then
-		purchase("Luck")
-	end
-end)
-
 -- Rebirth page: tap once to see the warning, tap again to rebirth.
 local rebirthInfo = label({ Position = UDim2.fromOffset(20, 20), Size = UDim2.new(1, -40, 0, 50), Parent = pages.Rebirth })
 label({
 	Position = UDim2.fromOffset(20, 80),
 	Size = UDim2.new(1, -40, 0, 60),
-	Text = "Resets your coins, slingshot, egg and Luck. You keep all your pets.",
+	Text = "Resets your coins, slingshot and egg. You keep all your pets.",
 	TextColor3 = DIM_TEXT,
 	Parent = pages.Rebirth,
 })
@@ -736,15 +711,6 @@ refreshShop = function()
 	refreshCards("Slingshot", coins)
 	refreshCards("Egg", coins)
 
-	local level = attribute("LuckLevel")
-	local nextBoost = math.floor((Economy.luckBoost(level + 1) - 1) * 100 + 0.5)
-	local boost = math.floor((Economy.luckBoost(level) - 1) * 100 + 0.5)
-	luckLevel.Text = `Luck level {level} of {Economy.maxLevel("Luck")}`
-	luckEffect.Text = if level < Economy.maxLevel("Luck")
-		then `Mutations +{boost}% now, +{nextBoost}% next`
-		else `Mutations +{boost}%`
-	setBuyButton(luckButton, Economy.upgradeCost("Luck", level), coins)
-
 	local rebirths = attribute("Rebirths")
 	local rebirthCost = Economy.rebirthCost(rebirths)
 	rebirthInfo.Text = `Rebirth {rebirths + 1}: coins x{Format.number(Economy.rebirthMultiplier(rebirths + 1))}`
@@ -760,7 +726,7 @@ local function refreshShopAndHint()
 	refreshShop()
 	updateHint()
 end
-for _, name in { "Coins", "SlingshotLevel", "EggLevel", "LuckLevel", "Rebirths", "Pedestals", "PetCount", "DataLoaded" } do
+for _, name in { "Coins", "SlingshotLevel", "EggLevel", "Rebirths", "Pedestals", "PetCount", "DataLoaded" } do
 	player:GetAttributeChangedSignal(name):Connect(refreshShopAndHint)
 end
 refreshShopAndHint()

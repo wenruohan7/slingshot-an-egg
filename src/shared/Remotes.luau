@@ -12,7 +12,7 @@ local NAMES = {
 	"EggLanded", -- server -> client: (zoneIndex, stageName, distance)
 	"EggHatched", -- server -> client: (egg, pet, merged, kept, isNew) what came out of your egg
 	"BigHatch", -- server -> all clients: (playerName, position, pet) a rare hatch everyone sees
-	"Purchase", -- client -> server: (kind) buy the next "Slingshot", "Egg" or "Luck", or "Rebirth"
+	"Purchase", -- client -> server: (kind) buy the next "Slingshot" or "Egg", or "Rebirth"
 	"Notice", -- server -> client: (text, kind) a short message, kind is "good", "error", "info" or "rebirth"
 }
 

@@ -11,7 +11,6 @@ local Economy = {}
 Economy.UPGRADE_FIELDS = {
 	Slingshot = "SlingshotLevel",
 	Egg = "EggLevel",
-	Luck = "LuckLevel",
 }
 
 type UpgradeInfo = { Cost: number, Growth: number, MaxLevel: number? }
@@ -24,7 +23,7 @@ function Economy.egg(level: number)
 	return Config.Eggs[math.clamp(level + 1, 1, #Config.Eggs)]
 end
 
--- Price of the next slingshot, egg or Luck level, or nil when there's nothing left to buy.
+-- Price of the next slingshot or egg, or nil when there's nothing left to buy.
 function Economy.upgradeCost(kind: string, level: number): number?
 	if kind == "Slingshot" then
 		local nextOne = Config.Slingshots[level + 2]
@@ -72,14 +71,9 @@ function Economy.launchPower(level: number): number
 	return Config.Slingshot.BasePower * Economy.slingshot(level).Power
 end
 
--- Multiplier on the Rare-and-up drop rates from the Egg upgrade.
-function Economy.eggBoost(level: number): number
-	return Economy.egg(level).Odds
-end
-
--- Multiplier on mutation chances from the Luck upgrade.
-function Economy.luckBoost(level: number): number
-	return 1 + Config.Upgrades.Luck.LuckPerLevel * level
+-- The Luck of the egg at this level (1 = no boost).
+function Economy.eggLuck(level: number): number
+	return Economy.egg(level).Luck
 end
 
 return Economy

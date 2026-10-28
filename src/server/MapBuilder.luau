@@ -1,7 +1,7 @@
 --!strict
 -- Builds the greybox map from code: the studded green hub ringed by checkered
--- walls, 4 fenced plots (each with 12 pedestals), the shop stands with a zone
--- in front of each, and the 8-zone lane. Everything goes into workspace.Map.
+-- walls, 4 fenced plots (each with 12 pedestals), the shop stands with a glowing
+-- circle in front of each, and the 8-zone lane. Everything goes into workspace.Map.
 -- Real art replaces these blocks later; keep part names stable so code can find them.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -232,76 +232,70 @@ function MapBuilder.slotZ(index: number): number
 end
 
 -- A small kiosk (posts, a counter, a coloured roof and a sign) with a glowing
--- square on the floor in front of it. Standing on the square opens the shop.
+-- circle on the floor in front of it. Standing in the circle opens the shop.
 local function buildStand(parent: Instance, shop: Shops.Shop)
-	local position, roofColor = shop.Position, shop.Color
+	-- The stand's own frame: -Z (LookVector) points where the counter faces.
+	local base = CFrame.lookAt(shop.Position, shop.Position + shop.Facing)
 	local stand = Instance.new("Model")
 	stand.Name = shop.Kind .. "Stand"
 
 	part({
 		Name = "Counter",
-		Size = Vector3.new(4, 4, 12),
-		Position = position + Vector3.new(0, 2, 0),
+		Size = Vector3.new(12, 4, 4),
+		CFrame = base * CFrame.new(0, 2, 0),
 		Color = WOOD_COLOR,
 		Parent = stand,
 	})
-	for _, z in { -5.5, 5.5 } do
+	for _, x in { -5.5, 5.5 } do
 		part({
 			Name = "Post",
 			Size = Vector3.new(1, 10, 1),
-			Position = position + Vector3.new(-1.5, 5, z),
+			CFrame = base * CFrame.new(x, 5, 1.5),
 			Color = WOOD_COLOR,
 			Parent = stand,
 		})
 	end
 	local roof = part({
 		Name = "Roof",
-		Size = Vector3.new(7, 1, 14),
-		Position = position + Vector3.new(-1, 10.5, 0),
-		Color = roofColor,
+		Size = Vector3.new(14, 1, 7),
+		CFrame = base * CFrame.new(0, 10.5, 1),
+		Color = shop.Color,
 		Parent = stand,
 	})
 	sign(roof, shop.Title, 4, UDim2.fromScale(14, 3), 300)
 
-	-- The zone: a coloured square with a white border and the shop's name on it.
+	-- The circle: a glowing disc in the shop's colour inside a white ring.
+	-- The client makes it pulse (HudController).
 	local center = Shops.zoneCenter(shop)
-	local size = Shops.ZONE_SIZE
+	local diameter = Shops.ZONE_RADIUS * 2
+	local flat = CFrame.Angles(0, 0, math.pi / 2) -- a cylinder's round faces point along X; turn them up
 	part({
-		Name = "ZoneBorder",
-		Size = Vector3.new(size, 0.2, size),
-		Position = center + Vector3.new(0, 0.1, 0),
+		Name = "ZoneRing",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.2, diameter + 1.4, diameter + 1.4),
+		CFrame = CFrame.new(center + Vector3.new(0, 0.1, 0)) * flat,
 		Color = Color3.new(1, 1, 1),
+		Material = Enum.Material.Neon,
 		CanCollide = false,
 		Parent = stand,
 	})
 	local zone = part({
 		Name = "Zone",
-		Size = Vector3.new(size - 1.6, 0.3, size - 1.6),
-		Position = center + Vector3.new(0, 0.15, 0),
-		Color = roofColor,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, diameter, diameter),
+		CFrame = CFrame.new(center + Vector3.new(0, 0.15, 0)) * flat,
+		Color = shop.Color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.35,
+		Transparency = 0.3,
 		CanCollide = false,
 		Parent = stand,
 	})
 	zone:SetAttribute("Kind", shop.Kind)
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Top
-	gui.CanvasSize = Vector2.new(400, 400)
-	gui.LightInfluence = 0
-	local label = Instance.new("TextLabel")
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
-	label.Position = UDim2.fromScale(0.5, 0.5)
-	label.Size = UDim2.fromScale(0.9, 0.3)
-	label.Rotation = -90 -- reads the right way up walking in from the lane side
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0
-	label.Text = shop.Title
-	label.Parent = gui
-	gui.Parent = zone
+	local light = Instance.new("PointLight")
+	light.Color = shop.Color
+	light.Range = 14
+	light.Brightness = 2
+	light.Parent = zone
 
 	stand.Parent = parent
 end

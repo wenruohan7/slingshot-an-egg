@@ -100,23 +100,23 @@ Config.Slingshots = {
 }
 
 -- Eggs, bought one after another in the Shop. Each one changes the egg you
--- launch. Odds multiplies the drop rates of Rare and up. A real model (a
+-- launch. Luck makes rarer pets more likely: Secret pets get the full Luck,
+-- each rarity below a smaller share of it, and Common none (HatchService). A real model (a
 -- MeshPart) with the same Name in ReplicatedStorage.EggModels replaces the
 -- built-in look.
 Config.Eggs = {
-	{ Name = "Plain Egg", Odds = 1, Cost = 0, Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Mint Egg", Odds = 1.15, Cost = 500, Color = Color3.fromRGB(170, 240, 200), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Sky Egg", Odds = 1.3, Cost = 5000, Color = Color3.fromRGB(140, 200, 255), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Golden Egg", Odds = 1.5, Cost = 50000, Color = Color3.fromRGB(255, 205, 60), Material = Enum.Material.Foil },
-	{ Name = "Crystal Egg", Odds = 1.75, Cost = 750000, Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Glass },
-	{ Name = "Rainbow Egg", Odds = 2, Cost = 12000000, Color = Color3.fromRGB(255, 130, 210), Material = Enum.Material.Neon },
-	{ Name = "Galaxy Egg", Odds = 2.4, Cost = 250000000, Color = Color3.fromRGB(90, 50, 180), Material = Enum.Material.Neon },
-	{ Name = "Divine Egg", Odds = 3, Cost = 5000000000, Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon },
+	{ Name = "Plain Egg", Luck = 1, Cost = 0, Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Mint Egg", Luck = 3, Cost = 500, Color = Color3.fromRGB(170, 240, 200), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Sky Egg", Luck = 10, Cost = 5000, Color = Color3.fromRGB(140, 200, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Golden Egg", Luck = 30, Cost = 50000, Color = Color3.fromRGB(255, 205, 60), Material = Enum.Material.Foil },
+	{ Name = "Crystal Egg", Luck = 100, Cost = 750000, Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow Egg", Luck = 250, Cost = 12000000, Color = Color3.fromRGB(255, 130, 210), Material = Enum.Material.Neon },
+	{ Name = "Galaxy Egg", Luck = 500, Cost = 250000000, Color = Color3.fromRGB(90, 50, 180), Material = Enum.Material.Neon },
+	{ Name = "Divine Egg", Luck = 1000, Cost = 5000000000, Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon },
 }
 
--- Other upgrades: price is Cost * Growth ^ level. MaxLevel caps each one.
+-- Pedestals: price is Cost * Growth ^ (pedestals bought so far).
 Config.Upgrades = {
-	Luck = { Cost = 200, Growth = 2.8, MaxLevel = 20, LuckPerLevel = 0.1 }, -- boosts mutations
 	Pedestal = { Cost = 150, Growth = 5 }, -- price of the next pedestal past the starting ones
 }
 
@@ -127,7 +127,7 @@ Config.Rebirth = {
 	Cost = 5e9,
 	Growth = 3.5,
 	CoinMultiplier = 2.5,
-	-- Rebirth resets coins, slingshots, eggs and Luck, and keeps pets.
+	-- Rebirth resets coins, slingshots and eggs, and keeps pets.
 	-- Bought pedestals are kept too, so a rebirth never lowers income; set this to
 	-- false to reset them to StartPedestals as well.
 	KeepPedestals = true,
@@ -171,7 +171,7 @@ Config.Slingshot = {
 -- Effect is what the game does with it (see MonetizationService).
 Config.RobuxShop = {
 	Passes = {
-		{ Key = "Luck2x", Name = "2x Luck", Text = "Double mutation chances, forever", Icon = "🍀", Price = 249, Id = 0 },
+		{ Key = "Luck2x", Name = "2x Luck", Text = "Double the Luck of every egg, forever", Icon = "🍀", Price = 249, Id = 0 },
 		{ Key = "VIP", Name = "VIP", Text = "1.5x coins, forever", Icon = "👑", Price = 399, Id = 0 },
 		{ Key = "AutoLaunch", Name = "Auto-Launch", Text = "Launches for you (coming in a later update)", Icon = "🔁", Price = 199, Id = 0 },
 		{ Key = "ExtraPedestals", Name = "Extra Pedestals", Text = "+4 pet slots (coming in a later update)", Icon = "🏛️", Price = 149, Id = 0 },
