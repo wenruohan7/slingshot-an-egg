@@ -22,16 +22,17 @@ Config.Lane = {
 
 -- The 8 zones, nearest first. Drop rates are percentages per rarity and add up to 100.
 -- EarnMultiplier makes pets from farther zones earn more than the same rarity nearby.
+-- It grows 8x per zone, so income climbs exponentially the farther you can launch.
 -- Rarity order: Common, Uncommon, Rare, Epic, Legendary, Mythic, Secret
 Config.Zones = {
 	{ Name = "Shore", EarnMultiplier = 1, Color = Color3.fromRGB(140, 210, 120), DropRates = { 70, 22, 6, 1.5, 0.4, 0.09, 0.01 } },
-	{ Name = "Meadow", EarnMultiplier = 1.6, Color = Color3.fromRGB(190, 230, 120), DropRates = { 40, 40, 14, 4.5, 1.2, 0.27, 0.03 } },
-	{ Name = "Lagoon", EarnMultiplier = 2.5, Color = Color3.fromRGB(80, 200, 210), DropRates = { 20, 35, 33, 9, 2.4, 0.55, 0.05 } },
-	{ Name = "Cloud", EarnMultiplier = 4, Color = Color3.fromRGB(235, 240, 255), DropRates = { 10, 25, 35, 24, 5, 0.9, 0.1 } },
-	{ Name = "Rainbow", EarnMultiplier = 6.5, Color = Color3.fromRGB(255, 170, 210), DropRates = { 5, 15, 30, 33, 15, 1.8, 0.2 } },
-	{ Name = "Far edge", EarnMultiplier = 10, Color = Color3.fromRGB(170, 140, 240), DropRates = { 2, 8, 20, 35, 28, 6.5, 0.5 } },
-	{ Name = "Starfall", EarnMultiplier = 16, Color = Color3.fromRGB(60, 60, 120), DropRates = { 0, 4, 12, 30, 37, 15, 2 } },
-	{ Name = "Moon Bay", EarnMultiplier = 25, Color = Color3.fromRGB(120, 120, 150), DropRates = { 0, 0, 6, 24, 40, 25, 5 } },
+	{ Name = "Meadow", EarnMultiplier = 8, Color = Color3.fromRGB(190, 230, 120), DropRates = { 40, 40, 14, 4.5, 1.2, 0.27, 0.03 } },
+	{ Name = "Lagoon", EarnMultiplier = 64, Color = Color3.fromRGB(80, 200, 210), DropRates = { 20, 35, 33, 9, 2.4, 0.55, 0.05 } },
+	{ Name = "Cloud", EarnMultiplier = 512, Color = Color3.fromRGB(235, 240, 255), DropRates = { 10, 25, 35, 24, 5, 0.9, 0.1 } },
+	{ Name = "Rainbow", EarnMultiplier = 4096, Color = Color3.fromRGB(255, 170, 210), DropRates = { 5, 15, 30, 33, 15, 1.8, 0.2 } },
+	{ Name = "Far edge", EarnMultiplier = 32768, Color = Color3.fromRGB(170, 140, 240), DropRates = { 2, 8, 20, 35, 28, 6.5, 0.5 } },
+	{ Name = "Starfall", EarnMultiplier = 262144, Color = Color3.fromRGB(60, 60, 120), DropRates = { 0, 4, 12, 30, 37, 15, 2 } },
+	{ Name = "Moon Bay", EarnMultiplier = 2097152, Color = Color3.fromRGB(120, 120, 150), DropRates = { 0, 0, 6, 24, 40, 25, 5 } },
 }
 
 Config.Rarities = {
@@ -85,17 +86,17 @@ Config.Plot = {
 -- ReplicatedStorage.SlingshotModels replaces it (see the README).
 Config.Slingshots = {
 	{ Name = "Wooden Slingshot", Power = 1, Cost = 0, Frame = Color3.fromRGB(176, 122, 78), Accent = Color3.fromRGB(255, 120, 160), Band = Color3.fromRGB(235, 60, 110), Material = Enum.Material.Wood },
-	{ Name = "Sturdy Slingshot", Power = 1.16, Cost = 60, Frame = Color3.fromRGB(120, 80, 50), Accent = Color3.fromRGB(240, 240, 240), Band = Color3.fromRGB(60, 60, 60), Material = Enum.Material.Wood },
-	{ Name = "Leafy Slingshot", Power = 1.35, Cost = 200, Frame = Color3.fromRGB(100, 160, 70), Accent = Color3.fromRGB(255, 220, 90), Band = Color3.fromRGB(80, 200, 90), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Iron Slingshot", Power = 1.57, Cost = 600, Frame = Color3.fromRGB(150, 155, 165), Accent = Color3.fromRGB(70, 75, 85), Band = Color3.fromRGB(40, 40, 45), Material = Enum.Material.Metal },
-	{ Name = "Candy Slingshot", Power = 1.82, Cost = 1500, Frame = Color3.fromRGB(255, 150, 200), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(120, 210, 255), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Golden Slingshot", Power = 2.1, Cost = 4000, Frame = Color3.fromRGB(255, 200, 60), Accent = Color3.fromRGB(255, 240, 160), Band = Color3.fromRGB(200, 40, 40), Material = Enum.Material.Foil },
-	{ Name = "Ice Slingshot", Power = 2.45, Cost = 10000, Frame = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(80, 160, 255), Material = Enum.Material.Ice },
-	{ Name = "Lava Slingshot", Power = 2.85, Cost = 25000, Frame = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 110, 30), Band = Color3.fromRGB(255, 170, 40), Material = Enum.Material.Basalt },
-	{ Name = "Crystal Slingshot", Power = 3.3, Cost = 60000, Frame = Color3.fromRGB(190, 140, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(150, 90, 255), Material = Enum.Material.Glass },
-	{ Name = "Rainbow Slingshot", Power = 3.85, Cost = 150000, Frame = Color3.fromRGB(255, 120, 200), Accent = Color3.fromRGB(120, 230, 255), Band = Color3.fromRGB(255, 230, 80), Material = Enum.Material.Neon },
-	{ Name = "Galaxy Slingshot", Power = 4.5, Cost = 400000, Frame = Color3.fromRGB(60, 30, 120), Accent = Color3.fromRGB(150, 220, 255), Band = Color3.fromRGB(255, 120, 255), Material = Enum.Material.Neon },
-	{ Name = "Moon Slingshot", Power = 5.3, Cost = 1000000, Frame = Color3.fromRGB(230, 230, 245), Accent = Color3.fromRGB(255, 230, 120), Band = Color3.fromRGB(140, 160, 255), Material = Enum.Material.Marble },
+	{ Name = "Sturdy Slingshot", Power = 1.16, Cost = 100, Frame = Color3.fromRGB(120, 80, 50), Accent = Color3.fromRGB(240, 240, 240), Band = Color3.fromRGB(60, 60, 60), Material = Enum.Material.Wood },
+	{ Name = "Leafy Slingshot", Power = 1.35, Cost = 600, Frame = Color3.fromRGB(100, 160, 70), Accent = Color3.fromRGB(255, 220, 90), Band = Color3.fromRGB(80, 200, 90), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Iron Slingshot", Power = 1.57, Cost = 3000, Frame = Color3.fromRGB(150, 155, 165), Accent = Color3.fromRGB(70, 75, 85), Band = Color3.fromRGB(40, 40, 45), Material = Enum.Material.Metal },
+	{ Name = "Candy Slingshot", Power = 1.82, Cost = 15000, Frame = Color3.fromRGB(255, 150, 200), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(120, 210, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Golden Slingshot", Power = 2.1, Cost = 80000, Frame = Color3.fromRGB(255, 200, 60), Accent = Color3.fromRGB(255, 240, 160), Band = Color3.fromRGB(200, 40, 40), Material = Enum.Material.Foil },
+	{ Name = "Ice Slingshot", Power = 2.45, Cost = 400000, Frame = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(80, 160, 255), Material = Enum.Material.Ice },
+	{ Name = "Lava Slingshot", Power = 2.85, Cost = 2500000, Frame = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 110, 30), Band = Color3.fromRGB(255, 170, 40), Material = Enum.Material.Basalt },
+	{ Name = "Crystal Slingshot", Power = 3.3, Cost = 15000000, Frame = Color3.fromRGB(190, 140, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(150, 90, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow Slingshot", Power = 3.85, Cost = 100000000, Frame = Color3.fromRGB(255, 120, 200), Accent = Color3.fromRGB(120, 230, 255), Band = Color3.fromRGB(255, 230, 80), Material = Enum.Material.Neon },
+	{ Name = "Galaxy Slingshot", Power = 4.5, Cost = 800000000, Frame = Color3.fromRGB(60, 30, 120), Accent = Color3.fromRGB(150, 220, 255), Band = Color3.fromRGB(255, 120, 255), Material = Enum.Material.Neon },
+	{ Name = "Moon Slingshot", Power = 5.3, Cost = 6000000000, Frame = Color3.fromRGB(230, 230, 245), Accent = Color3.fromRGB(255, 230, 120), Band = Color3.fromRGB(140, 160, 255), Material = Enum.Material.Marble },
 }
 
 -- Eggs, bought one after another in the Shop. Each one changes the egg you
@@ -104,25 +105,28 @@ Config.Slingshots = {
 -- built-in look.
 Config.Eggs = {
 	{ Name = "Plain Egg", Odds = 1, Cost = 0, Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Mint Egg", Odds = 1.15, Cost = 150, Color = Color3.fromRGB(170, 240, 200), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Sky Egg", Odds = 1.3, Cost = 600, Color = Color3.fromRGB(140, 200, 255), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Golden Egg", Odds = 1.5, Cost = 2500, Color = Color3.fromRGB(255, 205, 60), Material = Enum.Material.Foil },
-	{ Name = "Crystal Egg", Odds = 1.75, Cost = 10000, Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Glass },
-	{ Name = "Rainbow Egg", Odds = 2, Cost = 40000, Color = Color3.fromRGB(255, 130, 210), Material = Enum.Material.Neon },
-	{ Name = "Galaxy Egg", Odds = 2.4, Cost = 150000, Color = Color3.fromRGB(90, 50, 180), Material = Enum.Material.Neon },
-	{ Name = "Divine Egg", Odds = 3, Cost = 600000, Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon },
+	{ Name = "Mint Egg", Odds = 1.15, Cost = 500, Color = Color3.fromRGB(170, 240, 200), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Sky Egg", Odds = 1.3, Cost = 5000, Color = Color3.fromRGB(140, 200, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Golden Egg", Odds = 1.5, Cost = 50000, Color = Color3.fromRGB(255, 205, 60), Material = Enum.Material.Foil },
+	{ Name = "Crystal Egg", Odds = 1.75, Cost = 750000, Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow Egg", Odds = 2, Cost = 12000000, Color = Color3.fromRGB(255, 130, 210), Material = Enum.Material.Neon },
+	{ Name = "Galaxy Egg", Odds = 2.4, Cost = 250000000, Color = Color3.fromRGB(90, 50, 180), Material = Enum.Material.Neon },
+	{ Name = "Divine Egg", Odds = 3, Cost = 5000000000, Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon },
 }
 
 -- Other upgrades: price is Cost * Growth ^ level. MaxLevel caps each one.
 Config.Upgrades = {
-	Luck = { Cost = 150, Growth = 1.9, MaxLevel = 20, LuckPerLevel = 0.1 }, -- boosts mutations
-	Pedestal = { Cost = 100, Growth = 2.2 }, -- price of the next pedestal past the starting ones
+	Luck = { Cost = 200, Growth = 2.8, MaxLevel = 20, LuckPerLevel = 0.1 }, -- boosts mutations
+	Pedestal = { Cost = 150, Growth = 5 }, -- price of the next pedestal past the starting ones
 }
 
+-- Rebirth multiplies coins by CoinMultiplier ^ rebirths (2.5x, 6.25x, 15.6x...), and
+-- its price grows a little faster (Cost * Growth ^ rebirths), so each rebirth takes
+-- a bit longer than the last. Around rebirth 27 prices reach septillions (Sp).
 Config.Rebirth = {
-	Cost = 25000,
-	Growth = 3,
-	CoinBonus = 0.25, -- +25% coins per rebirth
+	Cost = 5e9,
+	Growth = 3.5,
+	CoinMultiplier = 2.5,
 	-- Rebirth resets coins, slingshots, eggs and Luck, and keeps pets.
 	-- Bought pedestals are kept too, so a rebirth never lowers income; set this to
 	-- false to reset them to StartPedestals as well.
@@ -158,6 +162,27 @@ Config.Slingshot = {
 	-- Launch plays once on release. Publish them from the account (or group) that owns the game.
 	ChargeAnimationId = "",
 	LaunchAnimationId = "",
+}
+
+-- The Robux shop (the Shop button). Create each item on the Creator Dashboard
+-- (your experience > Monetization > Passes or Developer Products) and paste its
+-- id here. Items with Id = 0 show as "Coming soon". Price is only the label;
+-- Roblox charges what the Dashboard says, so keep them the same.
+-- Effect is what the game does with it (see MonetizationService).
+Config.RobuxShop = {
+	Passes = {
+		{ Key = "Luck2x", Name = "2x Luck", Text = "Double mutation chances, forever", Icon = "🍀", Price = 249, Id = 0 },
+		{ Key = "VIP", Name = "VIP", Text = "1.5x coins, forever", Icon = "👑", Price = 399, Id = 0 },
+		{ Key = "AutoLaunch", Name = "Auto-Launch", Text = "Launches for you (coming in a later update)", Icon = "🔁", Price = 199, Id = 0 },
+		{ Key = "ExtraPedestals", Name = "Extra Pedestals", Text = "+4 pet slots (coming in a later update)", Icon = "🏛️", Price = 149, Id = 0 },
+	},
+	Products = {
+		-- Coin packs give this many seconds of your current income at once.
+		{ Key = "CoinsSmall", Name = "Bag of Coins", Text = "30 minutes of coins", Icon = "💰", Price = 25, Id = 0, IncomeSeconds = 1800 },
+		{ Key = "CoinsBig", Name = "Chest of Coins", Text = "6 hours of coins", Icon = "💎", Price = 199, Id = 0, IncomeSeconds = 21600 },
+	},
+	VipCoinMultiplier = 1.5,
+	LuckPassMultiplier = 2,
 }
 
 return Config

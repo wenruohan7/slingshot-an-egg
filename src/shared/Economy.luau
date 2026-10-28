@@ -64,7 +64,7 @@ function Economy.rebirthCost(rebirths: number): number
 end
 
 function Economy.rebirthMultiplier(rebirths: number): number
-	return 1 + Config.Rebirth.CoinBonus * rebirths
+	return Config.Rebirth.CoinMultiplier ^ rebirths
 end
 
 -- Studs flown at Power = 1 with the slingshot at this level.

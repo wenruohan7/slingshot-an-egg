@@ -1,12 +1,13 @@
 --!strict
 -- Builds the greybox map from code: the studded green hub ringed by checkered
--- walls, 5 fenced plots (each with 12 pedestals), the slingshot, egg and luck
--- stands, the rebirth stand, and the 8-zone lane. Everything goes into workspace.Map.
+-- walls, 4 fenced plots (each with 12 pedestals), the shop stands with a zone
+-- in front of each, and the 8-zone lane. Everything goes into workspace.Map.
 -- Real art replaces these blocks later; keep part names stable so code can find them.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Lane = require(Shared.Lane)
+local Shops = require(Shared.Shops)
 
 local MapBuilder = {}
 
@@ -21,14 +22,6 @@ for _, x in { 9, -3, -15 } do
 	end
 end
 assert(#PEDESTAL_SPOTS == Config.Plot.MaxPedestals, "pedestal spots must match Config.Plot.MaxPedestals")
-
--- The three upgrade stands and the rebirth stand: name, position, roof colour.
-MapBuilder.STANDS = {
-	{ Kind = "Slingshot", Title = "Slingshot", Position = Vector3.new(-55, 0, -45), Color = Color3.fromRGB(255, 120, 160) },
-	{ Kind = "Egg", Title = "Eggs", Position = Vector3.new(-55, 0, 0), Color = Color3.fromRGB(255, 205, 80) },
-	{ Kind = "Luck", Title = "Luck", Position = Vector3.new(-55, 0, 45), Color = Color3.fromRGB(110, 210, 110) },
-	{ Kind = "Rebirth", Title = "Rebirth", Position = Vector3.new(-100, 0, 62), Color = Color3.fromRGB(150, 110, 255) },
-}
 
 local PLOT_X = -150
 local PLOT_SPACING = 46
@@ -238,12 +231,14 @@ function MapBuilder.slotZ(index: number): number
 	return (index - (MapBuilder.PLOT_COUNT + 1) / 2) * PLOT_SPACING
 end
 
--- A small kiosk: posts, a counter with a prompt, a coloured roof and a sign.
-local function buildStand(parent: Instance, kind: string, title: string, position: Vector3, roofColor: Color3)
+-- A small kiosk (posts, a counter, a coloured roof and a sign) with a glowing
+-- square on the floor in front of it. Standing on the square opens the shop.
+local function buildStand(parent: Instance, shop: Shops.Shop)
+	local position, roofColor = shop.Position, shop.Color
 	local stand = Instance.new("Model")
-	stand.Name = kind .. "Stand"
+	stand.Name = shop.Kind .. "Stand"
 
-	local counter = part({
+	part({
 		Name = "Counter",
 		Size = Vector3.new(4, 4, 12),
 		Position = position + Vector3.new(0, 2, 0),
@@ -266,17 +261,47 @@ local function buildStand(parent: Instance, kind: string, title: string, positio
 		Color = roofColor,
 		Parent = stand,
 	})
-	sign(roof, title, 4, UDim2.fromScale(12, 3), 300)
+	sign(roof, shop.Title, 4, UDim2.fromScale(14, 3), 300)
 
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "Prompt"
-	prompt.ObjectText = title
-	prompt.ActionText = "Open shop" -- the client opens the Shop on this stand's page
-	prompt.HoldDuration = 0
-	prompt.MaxActivationDistance = 12
-	prompt.RequiresLineOfSight = false
-	prompt:SetAttribute("Kind", kind)
-	prompt.Parent = counter
+	-- The zone: a coloured square with a white border and the shop's name on it.
+	local center = Shops.zoneCenter(shop)
+	local size = Shops.ZONE_SIZE
+	part({
+		Name = "ZoneBorder",
+		Size = Vector3.new(size, 0.2, size),
+		Position = center + Vector3.new(0, 0.1, 0),
+		Color = Color3.new(1, 1, 1),
+		CanCollide = false,
+		Parent = stand,
+	})
+	local zone = part({
+		Name = "Zone",
+		Size = Vector3.new(size - 1.6, 0.3, size - 1.6),
+		Position = center + Vector3.new(0, 0.15, 0),
+		Color = roofColor,
+		Material = Enum.Material.Neon,
+		Transparency = 0.35,
+		CanCollide = false,
+		Parent = stand,
+	})
+	zone:SetAttribute("Kind", shop.Kind)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Top
+	gui.CanvasSize = Vector2.new(400, 400)
+	gui.LightInfluence = 0
+	local label = Instance.new("TextLabel")
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.5)
+	label.Size = UDim2.fromScale(0.9, 0.3)
+	label.Rotation = -90 -- reads the right way up walking in from the lane side
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0
+	label.Text = shop.Title
+	label.Parent = gui
+	gui.Parent = zone
 
 	stand.Parent = parent
 end
@@ -320,8 +345,8 @@ local function buildHub(map: Folder)
 		end
 	end
 
-	for _, info in MapBuilder.STANDS do
-		buildStand(hub, info.Kind, info.Title, info.Position, info.Color)
+	for _, shop in Shops.LIST do
+		buildStand(hub, shop)
 	end
 
 	local spawn = Instance.new("SpawnLocation")

@@ -55,8 +55,8 @@ function HatchService.rollRarity(zone: number, eggLevel: number): number
 	return pickWeighted(weights)
 end
 
-function HatchService.rollMutation(luckLevel: number): number?
-	local luck = Economy.luckBoost(luckLevel)
+function HatchService.rollMutation(luckLevel: number, extraLuck: number?): number?
+	local luck = Economy.luckBoost(luckLevel) * (extraLuck or 1)
 	for i = #Config.Mutations, 1, -1 do
 		if random:NextNumber() * 100 < Config.Mutations[i].Chance * luck then
 			return i
@@ -99,8 +99,9 @@ function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boole
 	end
 
 	local zone = HatchService.dropZone(distance)
+	local luckPass = if player:GetAttribute("Pass_Luck2x") == true then Config.RobuxShop.LuckPassMultiplier else 1
 	local rarity = HatchService.rollRarity(zone, data.EggLevel)
-	local pet: Pets.Pet = { Id = Pets.idFor(zone, rarity), Mutation = HatchService.rollMutation(data.LuckLevel) }
+	local pet: Pets.Pet = { Id = Pets.idFor(zone, rarity), Mutation = HatchService.rollMutation(data.LuckLevel, luckPass) }
 	local isNew = not data.Discovered[pet.Id]
 	data.Discovered[pet.Id] = true
 

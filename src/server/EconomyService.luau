@@ -1,6 +1,6 @@
 --!strict
 -- Coins: pays each player's pet income every second, and handles everything coins
--- buy: slingshots, eggs and Luck from the Shop menu, pedestals on your own plot,
+-- buy: slingshots, eggs and Luck at the shops in the hub, pedestals on your own plot,
 -- and rebirth. Also copies each player's data into attributes and leaderstats so
 -- clients can show it.
 
@@ -11,23 +11,28 @@ local Config = require(Shared.Config)
 local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
+local Shops = require(Shared.Shops)
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
 
 local EconomyService = {}
 
 local INCOME_SECONDS = 1
-local MAX_STAT = 2 ^ 53 -- leaderstats are whole numbers; keep them in range
+local ZONE_MARGIN = 6 -- studs of slack around a shop zone for buying
 
 function EconomyService.notify(player: Player, text: string, kind: string?)
 	Remotes.Notice:FireClient(player, text, kind or "info")
 end
 
+-- Coins go far past what a number stat can show, so the leaderboard shows
+-- them as short text (12.5K, 3.4Sp); Rebirths stays a number.
 local function setStat(player: Player, name: string, value: number)
 	local stats = player:FindFirstChild("leaderstats")
 	local stat = stats and stats:FindFirstChild(name)
-	if stat and stat:IsA("IntValue") then
-		stat.Value = math.min(math.floor(value), MAX_STAT)
+	if stat and stat:IsA("StringValue") then
+		stat.Value = Format.coins(value)
+	elseif stat and stat:IsA("IntValue") then
+		stat.Value = math.floor(value)
 	end
 end
 
@@ -37,7 +42,7 @@ function EconomyService.publish(player: Player)
 	if not data then
 		return
 	end
-	local income = DataService.income(data)
+	local income = DataService.income(data, player)
 	player:SetAttribute("Coins", data.Coins)
 	player:SetAttribute("Income", income)
 	player:SetAttribute("SlingshotLevel", data.SlingshotLevel)
@@ -62,11 +67,14 @@ end
 local function addLeaderstats(player: Player)
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
-	for _, name in { "Coins", "Coins/s", "Rebirths" } do
-		local value = Instance.new("IntValue")
+	for _, name in { "Coins", "Coins/s" } do
+		local value = Instance.new("StringValue")
 		value.Name = name
 		value.Parent = stats
 	end
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Rebirths"
+	rebirths.Parent = stats
 	stats.Parent = player
 end
 
@@ -149,11 +157,22 @@ local function rebirth(player: Player)
 	EconomyService.notify(player, `Rebirth {data.Rebirths}! Coins x{Format.number(multiplier)}`, "rebirth")
 end
 
--- Buttons in the Shop menu. The hub stands just open the Shop on the client.
+-- Shop buttons. Each shop only sells while you stand in its zone in front of
+-- its stand (a little extra room for lag).
+local function inShopZone(player: Player, kind: string): boolean
+	local shop = Shops.get(kind)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	return shop ~= nil and root ~= nil and root:IsA("BasePart") and Shops.isInZone(shop, root.Position, ZONE_MARGIN)
+end
+
 local function onPurchase(player: Player, kind: unknown)
+	if typeof(kind) ~= "string" or not inShopZone(player, kind) then
+		return
+	end
 	if kind == "Rebirth" then
 		rebirth(player)
-	elseif typeof(kind) == "string" and Economy.UPGRADE_FIELDS[kind] then
+	elseif Economy.UPGRADE_FIELDS[kind] then
 		buyUpgrade(player, kind)
 	end
 end
@@ -183,7 +202,7 @@ function EconomyService.init()
 			for _, player in Players:GetPlayers() do
 				local data = DataService.get(player)
 				if data then
-					data.Coins += DataService.income(data) * INCOME_SECONDS
+					data.Coins += DataService.income(data, player) * INCOME_SECONDS
 					EconomyService.publish(player)
 				end
 			end

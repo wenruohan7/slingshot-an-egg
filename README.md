@@ -40,6 +40,10 @@ Tiers without a model keep the built-in look, so you can add them one at a time.
 
 By default the arms are posed from code while charging and launching (`src/client/PoseController.client.luau`). To use your own instead, make them in Studio's Animation Editor, publish them from the account that owns the game, and put the ids in `Config.Slingshot`: `ChargeAnimationId` (set to Looping, plays while the button is held) and `LaunchAnimationId` (plays once on release).
 
+## Robux shop
+
+The Shop button opens the Robux shop, set up in `Config.RobuxShop`. To make an item buyable, create it on the [Creator Dashboard](https://create.roblox.com/dashboard/creations) (your experience, then Monetization, then Passes or Developer Products), and paste its id into `Id`. Items with `Id = 0` show "Coming soon". Working now: 2x Luck and VIP (passes) and the two coin packs (products). Auto-Launch and Extra Pedestals are listed but not built yet.
+
 ## Saving in Studio
 
 Progress is saved with DataStores. To test saving in Studio, turn on **Game Settings > Security > Enable Studio Access to API Services** (the place must be published). Without it the game still runs, it just starts fresh each time.
@@ -50,5 +54,5 @@ Progress is saved with DataStores. To test saving in Studio, turn on **Game Sett
 - [x] 2. Slingshot item, charge meter with 6 stages, launch, landing zone
 - [x] 3. Hatching with the drop rates and mutations, pets on pedestals, coins
 - [x] 4. Saving player data, offline coins
-- [x] 5. Shop menu (12 slingshots, 8 eggs, Luck, rebirth), pedestal buying
+- [x] 5. Shops in the hub (stand in a shop's zone to open it): 12 slingshots, 8 eggs, Luck, rebirth; pedestal buying; Robux shop
 - [ ] 6. Animations, effects and real art (first pass done: slingshot pull and launch pose, hatch, beam, confetti, coin pops, pet bounce)

@@ -11,7 +11,6 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
-local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 
@@ -289,45 +288,12 @@ player:GetAttributeChangedSignal("DataLoaded"):Connect(onDataLoaded)
 onDataLoaded()
 
 --------------------------------------------------------------------------------
--- Prompts: what you own on the stands, and only your own pedestal prompt
+-- Prompts: only your own pedestal prompt shows
 --------------------------------------------------------------------------------
 
-local standPrompts: { [ProximityPrompt]: string } = {}
-
--- Stands just open the Shop; the label shows what you have now.
-local function updateStandPrompt(prompt: ProximityPrompt, kind: string)
-	if kind == "Slingshot" then
-		prompt.ObjectText = Economy.slingshot(attribute("SlingshotLevel")).Name
-	elseif kind == "Egg" then
-		prompt.ObjectText = Economy.egg(attribute("EggLevel")).Name
-	elseif kind == "Luck" then
-		prompt.ObjectText = `Luck Lv {attribute("LuckLevel")}`
-	elseif kind == "Rebirth" then
-		prompt.ObjectText = `Rebirth: coins x{Format.number(Economy.rebirthMultiplier(attribute("Rebirths") + 1))}`
-	end
-	prompt.ActionText = "Open shop"
-end
-
-local function updateAllStands()
-	for prompt, kind in standPrompts do
-		if prompt.Parent then
-			updateStandPrompt(prompt, kind)
-		else
-			standPrompts[prompt] = nil
-		end
-	end
-end
-
 local function watchPrompt(instance: Instance)
-	if not instance:IsA("ProximityPrompt") then
-		return
-	end
-	local kind = instance:GetAttribute("Kind")
-	if kind == "Pedestal" then
+	if instance:IsA("ProximityPrompt") and instance:GetAttribute("Kind") == "Pedestal" then
 		instance.Enabled = instance:GetAttribute("OwnerUserId") == player.UserId
-	elseif typeof(kind) == "string" then
-		standPrompts[instance] = kind
-		updateStandPrompt(instance, kind)
 	end
 end
 
@@ -335,9 +301,6 @@ local map = workspace:WaitForChild("Map")
 map.DescendantAdded:Connect(watchPrompt)
 for _, instance in map:GetDescendants() do
 	watchPrompt(instance)
-end
-for _, name in { "SlingshotLevel", "EggLevel", "LuckLevel", "Rebirths" } do
-	player:GetAttributeChangedSignal(name):Connect(updateAllStands)
 end
 
 --------------------------------------------------------------------------------

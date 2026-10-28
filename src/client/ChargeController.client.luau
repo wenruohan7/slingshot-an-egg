@@ -200,12 +200,118 @@ end
 local zoneBanner = label({
 	Name = "ZoneBanner",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 130), -- below the hint line
+	Position = UDim2.new(0.5, 0, 0, 185), -- below the hint line and the distance bar
 	Size = UDim2.fromOffset(520, 70),
 	TextTransparency = 1,
 	TextStrokeTransparency = 1,
 	Parent = gui,
 })
+
+-- Distance bar along the top while an egg flies: the 8 zones in their colours,
+-- an egg marker that moves with your egg, and the part not reached yet dimmed.
+local distanceBar = Instance.new("Frame")
+distanceBar.Name = "DistanceBar"
+distanceBar.AnchorPoint = Vector2.new(0.5, 0)
+distanceBar.Position = UDim2.new(0.5, 0, 0, 128) -- under the hint line
+distanceBar.Size = UDim2.new(0.62, 0, 0, 38)
+distanceBar.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+distanceBar.Visible = false
+distanceBar.Parent = gui
+corner(distanceBar, UDim.new(0, 12))
+local distanceStroke = Instance.new("UIStroke")
+distanceStroke.Color = Color3.new(1, 1, 1)
+distanceStroke.Thickness = 3
+distanceStroke.Parent = distanceBar
+local barLimit = Instance.new("UISizeConstraint")
+barLimit.MaxSize = Vector2.new(820, 38)
+barLimit.Parent = distanceBar
+
+local zoneStrip = Instance.new("Frame")
+zoneStrip.Name = "Zones"
+zoneStrip.Position = UDim2.fromOffset(4, 4)
+zoneStrip.Size = UDim2.new(1, -8, 1, -8)
+zoneStrip.BackgroundTransparency = 1
+zoneStrip.ClipsDescendants = true
+zoneStrip.Parent = distanceBar
+corner(zoneStrip, UDim.new(0, 9))
+for i, zone in Config.Zones do
+	local segment = Instance.new("Frame")
+	segment.Name = zone.Name
+	segment.Position = UDim2.fromScale((i - 1) / #Config.Zones, 0)
+	segment.Size = UDim2.fromScale(1 / #Config.Zones, 1)
+	segment.BackgroundColor3 = zone.Color
+	segment.BorderSizePixel = 0
+	segment.Parent = zoneStrip
+	local name = label({
+		Position = UDim2.fromScale(0.05, 0.12),
+		Size = UDim2.fromScale(0.9, 0.76),
+		Text = zone.Name,
+		TextStrokeTransparency = 0.3,
+		Parent = segment,
+	})
+	local nameSize = Instance.new("UITextSizeConstraint")
+	nameSize.MaxTextSize = 18
+	nameSize.Parent = name
+	if i > 1 then
+		local line = Instance.new("Frame")
+		line.Size = UDim2.new(0, 2, 1, 0)
+		line.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+		line.BorderSizePixel = 0
+		line.Parent = segment
+	end
+end
+local notReached = Instance.new("Frame")
+notReached.Name = "NotReached"
+notReached.AnchorPoint = Vector2.new(1, 0)
+notReached.Position = UDim2.fromScale(1, 0)
+notReached.Size = UDim2.fromScale(1, 1)
+notReached.BackgroundColor3 = Color3.new(0, 0, 0)
+notReached.BackgroundTransparency = 0.55
+notReached.BorderSizePixel = 0
+notReached.ZIndex = 2
+notReached.Parent = zoneStrip
+
+local eggMarker = label({
+	Name = "EggMarker",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0, 0.5),
+	Size = UDim2.fromOffset(44, 44),
+	Text = "🥚",
+	ZIndex = 3,
+	Parent = distanceBar,
+})
+
+local trackedEgg: BasePart? = nil
+
+local function setDistanceBar(fraction: number)
+	fraction = math.clamp(fraction, 0, 1)
+	notReached.Size = UDim2.fromScale(1 - fraction, 1)
+	eggMarker.Position = UDim2.fromScale(fraction, 0.5)
+end
+
+local function showDistanceBar(egg: BasePart)
+	trackedEgg = egg
+	setDistanceBar(0)
+	distanceBar.Visible = true
+end
+
+-- Hides the bar a moment after landing, unless a new egg is already flying.
+local function hideDistanceBar(after: number)
+	local egg = trackedEgg
+	task.delay(after, function()
+		if trackedEgg == egg then
+			trackedEgg = nil
+			distanceBar.Visible = false
+		end
+	end)
+end
+
+RunService.RenderStepped:Connect(function()
+	local egg = trackedEgg
+	if egg and egg.Parent then
+		setDistanceBar((egg.Position.X - Config.Lane.StartX) / Lane.Length)
+	end
+end)
 
 -- Pops a label in big, then fades it out.
 local function popText(target: TextLabel, scale: UIScale?, text: string, color: Color3, hold: number)
@@ -422,6 +528,7 @@ Remotes.EggLaunched.OnClientEvent:Connect(function(egg: BasePart, stageName: str
 		return
 	end
 	camera.CameraSubject = egg
+	showDistanceBar(egg)
 	-- The server removes the egg once it has hatched; then the camera comes home
 	-- and the player can launch again.
 	local connection: RBXScriptConnection
@@ -437,4 +544,5 @@ end)
 Remotes.EggLanded.OnClientEvent:Connect(function(zoneIndex: number, _stageName: string, _distance: number)
 	local zone = Config.Zones[zoneIndex]
 	popText(zoneBanner, nil, "Landed in " .. zone.Name .. "!", zone.Color, 2)
+	hideDistanceBar(2.5)
 end)

@@ -96,13 +96,15 @@ function DataService.bestPets(data: Data): { Pets.Pet }
 	return best
 end
 
--- Coins per second from the pets on the player's pedestals.
-function DataService.income(data: Data): number
+-- Coins per second from the pets on the player's pedestals. Pass the player to
+-- include the VIP pass bonus (MonetizationService sets the Pass_VIP attribute).
+function DataService.income(data: Data, player: Player?): number
 	local total = 0
 	for _, pet in DataService.bestPets(data) do
 		total += Pets.earnRate(pet)
 	end
-	return total * DataService.rebirthMultiplier(data)
+	local vip = if player and player:GetAttribute("Pass_VIP") == true then Config.RobuxShop.VipCoinMultiplier else 1
+	return total * DataService.rebirthMultiplier(data) * vip
 end
 
 function DataService.get(player: Player): Data?
@@ -138,7 +140,7 @@ local function load(player: Player)
 
 	-- Offline earnings, capped.
 	local away = math.clamp(os.time() - data.LastOnline, 0, Config.Offline.MaxHours * 3600)
-	local offlineCoins = math.floor(DataService.income(data) * away * Config.Offline.Rate)
+	local offlineCoins = math.floor(DataService.income(data, player) * away * Config.Offline.Rate)
 	data.Coins += offlineCoins
 	data.LastOnline = os.time()
 
@@ -161,6 +163,11 @@ local function save(player: Player)
 	withRetries(3, function()
 		return (store :: DataStore):SetAsync(key, data, { player.UserId })
 	end)
+end
+
+-- Saves right away, e.g. after a Robux purchase.
+function DataService.saveNow(player: Player)
+	save(player)
 end
 
 function DataService.init()

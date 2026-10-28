@@ -193,7 +193,7 @@ function PlotService.refresh(player: Player)
 	end
 	drawPets(plot, DataService.bestPets(data))
 	drawPedestals(plot, data.Pedestals, player)
-	setSign(plot, `{player.DisplayName}'s plot\n+{Format.number(DataService.income(data))}/s`)
+	setSign(plot, `{player.DisplayName}'s plot\n+{Format.number(DataService.income(data, player))}/s`)
 end
 
 -- A newly bought pedestal rises out of the plot with a little overshoot.
