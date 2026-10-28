@@ -19,6 +19,11 @@ function EggModel.build(level: number?): BasePart
 	local custom = folder and folder:FindFirstChild(look.Name)
 	if custom and custom:IsA("BasePart") then
 		local egg = custom:Clone()
+		for _, item in egg:GetDescendants() do
+			if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
+				item:Destroy()
+			end
+		end
 		egg.Name = "Egg"
 		egg.Anchored = true
 		egg.CanCollide = false

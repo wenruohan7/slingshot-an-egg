@@ -4,7 +4,8 @@
 -- circle in front of each, and the 8-zone lane. Everything goes into workspace.Map.
 -- Real art replaces these blocks later; keep part names stable so code can find them.
 
-local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Lane = require(Shared.Lane)
 local Shops = require(Shared.Shops)
@@ -239,30 +240,62 @@ local function buildStand(parent: Instance, shop: Shops.Shop)
 	local stand = Instance.new("Model")
 	stand.Name = shop.Kind .. "Stand"
 
-	part({
-		Name = "Counter",
-		Size = Vector3.new(12, 4, 4),
-		CFrame = base * CFrame.new(0, 2, 0),
-		Color = WOOD_COLOR,
-		Parent = stand,
-	})
-	for _, x in { -5.5, 5.5 } do
+	-- A real stand model: a Model in ReplicatedStorage.StandModels named like the
+	-- shop's title, with its pivot on the floor and its front facing -Z.
+	local folder = ReplicatedStorage:FindFirstChild("StandModels")
+	local custom = folder and folder:FindFirstChild(shop.Title)
+	local signAnchor: BasePart
+	if custom and custom:IsA("Model") then
+		local copy = custom:Clone()
+		for _, item in copy:GetDescendants() do
+			if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
+				item:Destroy()
+			elseif item:IsA("BasePart") then
+				item.Anchored = true
+			end
+		end
+		copy:PivotTo(base)
+		copy.Parent = stand
+		local box, size = copy:GetBoundingBox()
+		signAnchor = part({
+			Name = "SignAnchor",
+			Size = Vector3.one,
+			CFrame = CFrame.new(box.Position + Vector3.new(0, size.Y / 2, 0)),
+			Transparency = 1,
+			CanCollide = false,
+			Parent = stand,
+		})
+	else
+		-- Wood and Fabric (not plain plastic), so a MaterialVariant set in
+		-- MaterialService restyles every stand at once.
 		part({
-			Name = "Post",
-			Size = Vector3.new(1, 10, 1),
-			CFrame = base * CFrame.new(x, 5, 1.5),
+			Name = "Counter",
+			Size = Vector3.new(12, 4, 4),
+			CFrame = base * CFrame.new(0, 2, 0),
 			Color = WOOD_COLOR,
+			Material = Enum.Material.Wood,
+			Parent = stand,
+		})
+		for _, x in { -5.5, 5.5 } do
+			part({
+				Name = "Post",
+				Size = Vector3.new(1, 10, 1),
+				CFrame = base * CFrame.new(x, 5, 1.5),
+				Color = WOOD_COLOR,
+				Material = Enum.Material.Wood,
+				Parent = stand,
+			})
+		end
+		signAnchor = part({
+			Name = "Roof",
+			Size = Vector3.new(14, 1, 7),
+			CFrame = base * CFrame.new(0, 10.5, 1),
+			Color = shop.Color,
+			Material = Enum.Material.Fabric,
 			Parent = stand,
 		})
 	end
-	local roof = part({
-		Name = "Roof",
-		Size = Vector3.new(14, 1, 7),
-		CFrame = base * CFrame.new(0, 10.5, 1),
-		Color = shop.Color,
-		Parent = stand,
-	})
-	sign(roof, shop.Title, 4, UDim2.fromScale(14, 3), 300)
+	sign(signAnchor, shop.Title, 4, UDim2.fromScale(14, 3), 300)
 
 	-- The circle: a glowing disc in the shop's colour inside a white ring.
 	-- The client makes it pulse (HudController).

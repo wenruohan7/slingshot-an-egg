@@ -27,14 +27,18 @@ Set the place's **Max Players** to 4 (Game Settings, then Places), to match the 
 
 To change zones, drop rates, pet earnings, prices, launch power, or the slingshot and egg tiers, edit `src/shared/Config.luau`.
 
-## Using your own slingshot and egg models
+## Using your own models
 
-Every slingshot and egg tier is drawn from parts by default. To swap in a real model, put it in Studio by hand (Rojo leaves these folders alone):
+Everything is drawn from simple parts by default. To swap in a real model, put it in a folder in ReplicatedStorage in Studio (Rojo leaves these folders alone). Names must match exactly. Scripts inside a model are removed when it's used, so free models can't run code. Anything without a model keeps the built-in look, so you can add them one at a time.
 
-- **Slingshots:** make a Folder called `SlingshotModels` in ReplicatedStorage. Put a **Tool** in it named exactly like the tier in `Config.Slingshots` (for example `Iron Slingshot`), with a part called `Handle`. That model is then held in the hand and shown in the Shop.
-- **Eggs:** make a Folder called `EggModels` in ReplicatedStorage. Put a **MeshPart** in it named exactly like the tier in `Config.Eggs` (for example `Golden Egg`), about 4 studs wide and 5 tall. That egg is then launched and shown in the Shop.
+| Folder in ReplicatedStorage | Put in it | Named like | Notes |
+| --- | --- | --- | --- |
+| `SlingshotModels` | a **Tool** with a part called `Handle` | the tier in `Config.Slingshots`, e.g. `Iron Slingshot` | held in the hand and shown in the shop |
+| `EggModels` | a **MeshPart** | the tier in `Config.Eggs`, e.g. `Golden Egg` | about 4 studs wide and 5 tall |
+| `PetModels` | a **Model** | the pet in `src/shared/Pets.luau`, e.g. `Puddle Frog` | front facing -Z (Studio's front); any size, it's scaled to pet height |
+| `StandModels` | a **Model** | the shop title in `src/shared/Shops.luau`: `Slingshot Shop`, `Egg Shop`, `Rebirth` | pivot on the floor, front facing -Z |
 
-Tiers without a model keep the built-in look, so you can add them one at a time.
+Textures: stands use the Wood and Fabric materials, so a custom material set as an override in the Material Manager (Wood, Fabric, Grass, ...) restyles them everywhere at once.
 
 ## Using your own slingshot animation
 

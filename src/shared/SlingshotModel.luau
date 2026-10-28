@@ -95,6 +95,12 @@ local function customTool(name: string): Tool?
 	local custom = folder and folder:FindFirstChild(name)
 	if custom and custom:IsA("Tool") then
 		local tool = custom:Clone()
+		-- Free models often carry their own scripts; our code does the launching.
+		for _, item in tool:GetDescendants() do
+			if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
+				item:Destroy()
+			end
+		end
 		tool.Name = SlingshotModel.NAME
 		tool.CanBeDropped = false
 		tool.ToolTip = name

@@ -385,12 +385,13 @@ local function playHatch(egg: BasePart?, pet: Pets.Pet, merged: boolean, kept: b
 	local facing = CFrame.lookAt(ground, flatCamera) * CFrame.Angles(0, math.pi / 2, 0)
 	local popped = PetModel.build(pet, facing)
 	popped.Parent = workspace
+	local fullScale = popped:GetScale() -- real pet models are already resized
 	local grow = Instance.new("NumberValue")
 	grow.Value = 0.2
-	popped:ScaleTo(grow.Value)
+	popped:ScaleTo(fullScale * grow.Value)
 	grow.Changed:Connect(function(value)
 		if popped.Parent and value > 0 then
-			popped:ScaleTo(value)
+			popped:ScaleTo(fullScale * value)
 		end
 	end)
 	TweenService:Create(grow, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Value = 1 }):Play()
