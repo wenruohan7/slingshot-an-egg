@@ -7,7 +7,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local CustomModels = require(Shared.CustomModels)
 local Lane = require(Shared.Lane)
+local MeshSizes = require(Shared.MeshSizes)
 local Shops = require(Shared.Shops)
 
 local MapBuilder = {}
@@ -240,27 +242,43 @@ local function buildStand(parent: Instance, shop: Shops.Shop)
 	local stand = Instance.new("Model")
 	stand.Name = shop.Kind .. "Stand"
 
-	-- A real stand model: a Model in ReplicatedStorage.StandModels named like the
-	-- shop's title, with its pivot on the floor and its front facing -Z.
-	local folder = ReplicatedStorage:FindFirstChild("StandModels")
-	local custom = folder and folder:FindFirstChild(shop.Title)
+	-- A real stand model: a Model (or a single mesh) in ReplicatedStorage.StandModels
+	-- named like the shop's title, front facing -Z. It's stood on the floor by
+	-- its lowest point; the ones in models/stands are also sized from MeshSizes.
+	local custom = CustomModels.find("StandModels", shop.Title)
 	local signAnchor: BasePart
-	if custom and custom:IsA("Model") then
-		local copy = custom:Clone()
+	if custom and (custom:IsA("Model") or custom:IsA("BasePart")) then
+		local copy: Model
+		if custom:IsA("Model") then
+			copy = custom:Clone()
+		else
+			copy = Instance.new("Model")
+			copy.Name = custom.Name
+			custom:Clone().Parent = copy
+		end
+		CustomModels.stripScripts(copy)
 		for _, item in copy:GetDescendants() do
-			if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
-				item:Destroy()
-			elseif item:IsA("BasePart") then
+			if item:IsA("BasePart") then
 				item.Anchored = true
 			end
 		end
-		copy:PivotTo(base)
+		local lo, hi = CustomModels.bounds(copy)
+		local box = MeshSizes.Stands[shop.Title]
+		if box and hi.Y > lo.Y then
+			-- Studio's importer may pick any scale
+			copy:ScaleTo(copy:GetScale() * box.Size.Y / (hi.Y - lo.Y))
+			lo, hi = CustomModels.bounds(copy)
+		end
+		-- Keep the way the model is turned in ReplicatedStorage, so a model that
+		-- comes in facing backwards can be fixed by rotating it there.
+		local bottom = CFrame.new((lo.X + hi.X) / 2, lo.Y, (lo.Z + hi.Z) / 2)
+		copy:PivotTo(base * bottom:ToObjectSpace(copy:GetPivot()))
 		copy.Parent = stand
-		local box, size = copy:GetBoundingBox()
+		lo, hi = CustomModels.bounds(copy)
 		signAnchor = part({
 			Name = "SignAnchor",
 			Size = Vector3.one,
-			CFrame = CFrame.new(box.Position + Vector3.new(0, size.Y / 2, 0)),
+			CFrame = CFrame.new((lo.X + hi.X) / 2, hi.Y, (lo.Z + hi.Z) / 2),
 			Transparency = 1,
 			CanCollide = false,
 			Parent = stand,
