@@ -158,6 +158,14 @@ Config.Charge = {
 }
 
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
+-- Fixes for models imported with Studio's 3D Importer (ReplicatedStorage.BowModels).
+-- The game already fixes a bow that comes in lying on its side or turned a quarter.
+-- If the bows still face the wrong way (the string in front of the bow instead of
+-- toward you), set BowTurn to 180.
+Config.Models = {
+	BowTurn = 0, -- degrees, turning the bow around its up axis
+}
+
 Config.Slingshot = {
 	BasePower = 320, -- first slingshot: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 

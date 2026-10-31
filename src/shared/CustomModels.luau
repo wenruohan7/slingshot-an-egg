@@ -51,6 +51,53 @@ function CustomModels.mainPart(root: Instance): BasePart?
 	return root:FindFirstChildWhichIsA("BasePart", true)
 end
 
+-- Studio's 3D Importer can bring a mesh in with its axes swapped (lying on its
+-- side, or turned a quarter). `size` is the mesh's own Size and `wanted` is the
+-- size it should have in our model's space (from MeshSizes). Returns the
+-- rotation that turns the mesh's own axes onto ours, picked by matching the
+-- proportions of its sides, and the Size to give the mesh in its own axes.
+-- A mesh that matches both ways round (like a turned-around bow) can't be told
+-- apart by size; Config.Models has a setting to turn those.
+local TURNS: { CFrame } = {}
+for _, x in { 0, 1, 2, 3 } do
+	for _, y in { 0, 1, 2, 3 } do
+		for _, z in { 0, 1, 2, 3 } do
+			local turn = CFrame.Angles(x * math.pi / 2, y * math.pi / 2, z * math.pi / 2)
+			local duplicate = false
+			for _, seen in TURNS do
+				if seen.RightVector:FuzzyEq(turn.RightVector, 1e-3) and seen.UpVector:FuzzyEq(turn.UpVector, 1e-3) then
+					duplicate = true
+					break
+				end
+			end
+			if not duplicate then
+				table.insert(TURNS, turn)
+			end
+		end
+	end
+end
+
+local function absVector(v: Vector3): Vector3
+	return Vector3.new(math.abs(v.X), math.abs(v.Y), math.abs(v.Z))
+end
+
+function CustomModels.fitRotation(size: Vector3, wanted: Vector3): (CFrame, Vector3)
+	local best, bestError = CFrame.identity, math.huge
+	local shape = wanted / math.max(wanted.Magnitude, 1e-6)
+	for _, turn in TURNS do
+		-- the mesh's sides as they'd lie in our space after this turn
+		local turned = absVector(turn:VectorToWorldSpace(size))
+		local err = (turned / math.max(turned.Magnitude, 1e-6) - shape).Magnitude
+		-- prefer the smallest turn among ones that fit equally well
+		local cost = err * 1000 - turn.RightVector.X - turn.UpVector.Y - turn.LookVector.Z
+		if cost < bestError then
+			best, bestError = turn, cost
+		end
+	end
+	local ownSize = absVector(best:VectorToObjectSpace(wanted))
+	return best, ownSize
+end
+
 -- The world-aligned box around every part in root: its low and high corners.
 function CustomModels.bounds(root: Instance): (Vector3, Vector3)
 	local lo = Vector3.one * math.huge

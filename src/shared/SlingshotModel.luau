@@ -16,6 +16,7 @@
 --     "Pouch" so the egg launches from there).
 
 local CustomModels = require(script.Parent.CustomModels)
+local Config = require(script.Parent.Config)
 local Economy = require(script.Parent.Economy)
 local MeshSizes = require(script.Parent.MeshSizes)
 
@@ -140,8 +141,12 @@ local function customHandle(mesh: BasePart, name: string, tool: Tool): BasePart
 		size = mesh.Size * ((TIP_TOP.Y - TIP_BOTTOM.Y) / math.max(mesh.Size.Y, 0.01))
 		center = Vector3.new(-LIMB_CURVE / 2, 0, 0)
 	end
-	handle.Size = scaled(size)
-	handle.CFrame = CFrame.new(scaled(center))
+	-- Fix up a mesh the importer brought in lying on its side or turned, then
+	-- apply Config.Models.BowTurn for one that came in facing backwards.
+	local turn, ownSize = CustomModels.fitRotation(mesh.Size, size)
+	local extra = math.rad(Config.Models.BowTurn)
+	handle.Size = scaled(ownSize)
+	handle.CFrame = CFrame.new(scaled(center)) * CFrame.Angles(0, extra, 0) * turn
 	handle.Parent = tool
 	return handle
 end
