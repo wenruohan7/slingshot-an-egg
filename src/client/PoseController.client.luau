@@ -7,8 +7,13 @@
 -- It's done from code on top of the normal animations, so nothing has to be
 -- uploaded. Each client poses everyone: your own character from LocalCharge
 -- (no lag), other players from the attributes the server puts on their
--- character. If Config.Slingshot.ChargeAnimationId is set, your own Animation
--- Editor animations play instead.
+-- character.
+--
+-- With the bow animations (ReplicatedStorage.BowAnimations, ids in
+-- Config.Slingshot) your own character plays those instead: BowDraw is scrubbed
+-- with the meter so the drawing hand stays on the string, and BowRelease plays
+-- when you let go, freezing on its Impact frame for a Perfect. Animations
+-- played on your own character show for everyone.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -36,7 +41,7 @@ type Pose = {
 -- The pose for this point in a charge (held = seconds held).
 local function chargingPose(held: number): Pose
 	local pull = Charge.valueAt(held)
-	return { weight = math.min(held / BLEND_IN, 1), band = pull, lean = LEAN_BACK * pull }
+	return { weight = math.min(held / BLEND_IN, 1), band = SlingshotModel.drawFor(pull), lean = LEAN_BACK * pull }
 end
 
 -- The pose `since` seconds after letting go at `pull`, or nil once it's over.
@@ -168,46 +173,106 @@ local function clearPose(character: Model)
 end
 
 --------------------------------------------------------------------------------
--- Your own animations, if Config names them
+-- The bow animations
 --------------------------------------------------------------------------------
 
-local useOwnAnimations = Config.Slingshot.ChargeAnimationId ~= ""
-local chargeTrack: AnimationTrack? = nil
-local wasCharging = false
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local function loadTrack(id: string): AnimationTrack?
-	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
-	if id == "" or not animator then
+local uploaded = Config.Slingshot.DrawAnimationId ~= "" and Config.Slingshot.ReleaseAnimationId ~= ""
+local PERFECT = Config.Charge.Stages[1].Name
+
+-- The animation id to use: the uploaded one, or in Studio a temporary id for the
+-- KeyframeSequence in ReplicatedStorage.BowAnimations (Studio-only, so you can try
+-- them before uploading).
+local function animationId(configured: string, name: string): string?
+	if configured ~= "" then
+		return configured
+	end
+	if not RunService:IsStudio() then
 		return nil
 	end
+	local folder = ReplicatedStorage:FindFirstChild("BowAnimations")
+	local sequence = folder and folder:FindFirstChild(name)
+	if not (sequence and sequence:IsA("KeyframeSequence")) then
+		return nil
+	end
+	local ok, id = pcall(function()
+		return game:GetService("KeyframeSequenceProvider"):RegisterKeyframeSequence(sequence)
+	end)
+	return if ok then id else nil
+end
+
+local drawId = animationId(Config.Slingshot.DrawAnimationId, "BowDraw")
+local releaseId = animationId(Config.Slingshot.ReleaseAnimationId, "BowRelease")
+local useOwnAnimations = drawId ~= nil and releaseId ~= nil
+
+type Tracks = { animator: Animator, draw: AnimationTrack, release: AnimationTrack }
+local tracks: Tracks? = nil
+
+local function loadTrack(animator: Animator, id: string, priority: Enum.AnimationPriority): AnimationTrack
 	local animation = Instance.new("Animation")
 	animation.AnimationId = id
 	local track = animator:LoadAnimation(animation)
-	track.Priority = Enum.AnimationPriority.Action
+	track.Priority = priority
+	track.Looped = false
 	return track
 end
 
--- Tracks played on your own character show for everyone without extra work.
+-- The tracks for your current character (loaded again after a respawn).
+local function ownTracks(): Tracks?
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	if not animator or not drawId or not releaseId then
+		return nil
+	end
+	if tracks and tracks.animator == animator then
+		return tracks
+	end
+	local release = loadTrack(animator, releaseId, Enum.AnimationPriority.Action2)
+	local loaded = {
+		animator = animator,
+		draw = loadTrack(animator, drawId, Enum.AnimationPriority.Action),
+		release = release,
+	}
+	-- Impact: hold still for a Perfect (the hit-stop under the impact frames).
+	release:GetMarkerReachedSignal("Impact"):Connect(function()
+		if LocalCharge.releaseStage == PERFECT then
+			release:AdjustSpeed(0)
+			task.delay(Config.Charge.PerfectFreeze, function()
+				if release.IsPlaying then
+					release:AdjustSpeed(1)
+				end
+			end)
+		end
+	end)
+	-- Done: ease back into the normal animations.
+	release:GetMarkerReachedSignal("Done"):Connect(function()
+		release:Stop(0.35)
+	end)
+	tracks = loaded
+	return loaded
+end
+
+local wasCharging = false
+
 local function updateOwnAnimations()
-	if LocalCharge.charging == wasCharging then
+	local t = ownTracks()
+	if not t then
 		return
 	end
-	wasCharging = LocalCharge.charging
-	if wasCharging then
-		chargeTrack = loadTrack(Config.Slingshot.ChargeAnimationId)
-		if chargeTrack then
-			chargeTrack:Play(BLEND_IN)
+	if LocalCharge.charging then
+		if not wasCharging then
+			wasCharging = true
+			t.release:Stop(0.1)
+			t.draw:Play(0.12, 1, 0) -- speed 0: the meter moves it
 		end
-	else
-		if chargeTrack then
-			chargeTrack:Stop(0.1)
-			chargeTrack = nil
-		end
-		local launchTrack = loadTrack(Config.Slingshot.LaunchAnimationId)
-		if launchTrack then
-			launchTrack:Play(0.05)
-		end
+		-- BowDraw is 1 second long: its time is the meter value.
+		local meter = Charge.valueAt(os.clock() - LocalCharge.startedAt)
+		t.draw.TimePosition = math.clamp(meter, 0, 0.999) * t.draw.Length
+	elseif wasCharging then
+		wasCharging = false
+		t.draw:Stop(0.06)
+		t.release:Play(0.04, 1, 1)
 	end
 end
 
@@ -227,12 +292,14 @@ RunService.PreSimulation:Connect(function()
 			continue
 		end
 		local isLocal = other == player
+		-- Animations replicate only once uploaded; the Studio-only ones are just yours.
+		local animated = if isLocal then useOwnAnimations else uploaded
 		local pose = poseFor(character, isLocal)
 		local tool = character:FindFirstChild(SlingshotModel.NAME)
 		local slingshot = if tool and tool:IsA("Tool") then tool else nil
 		if pose then
 			posed[character] = true
-			if not useOwnAnimations then
+			if not animated then
 				applyPose(character, pose, slingshot)
 			end
 			-- Your own band is driven by ChargeController; other players' bands here.
@@ -241,7 +308,7 @@ RunService.PreSimulation:Connect(function()
 			end
 		elseif posed[character] then
 			posed[character] = nil
-			if not useOwnAnimations then
+			if not animated then
 				clearPose(character)
 			end
 			if slingshot and not isLocal then

@@ -23,6 +23,15 @@ local MeshSizes = require(script.Parent.MeshSizes)
 local SlingshotModel = {}
 
 SlingshotModel.NAME = "Bow"
+
+-- R15 arms can't reach the string all the way forward at rest, so a draw starts
+-- with the string this far back (0..1 of a full draw) and the meter draws the rest.
+SlingshotModel.DRAW_START = 0.6
+
+-- How far the string is drawn for a charge meter value (0..1).
+function SlingshotModel.drawFor(meter: number): number
+	return SlingshotModel.DRAW_START + (1 - SlingshotModel.DRAW_START) * meter
+end
 SlingshotModel.CUSTOM_FOLDER = "BowModels"
 
 local SCALE = 0.4 -- the shape below is drawn 13 studs tall; this sizes it for a hand
@@ -40,7 +49,10 @@ local LIMB_SEGMENTS = 5
 local TIP_TOP = Vector3.new(-LIMB_CURVE, GRIP_HALF + LIMB_LENGTH, 0)
 local TIP_BOTTOM = Vector3.new(-LIMB_CURVE, -(GRIP_HALF + LIMB_LENGTH), 0)
 local POUCH_REST = Vector3.new(-LIMB_CURVE, 0, 0) -- the nock, on the straight string
-local PULL_BACK = Vector3.new(-6, 0, 0) -- where the nock goes at full charge, relative to rest
+-- Where the nock goes at full draw, relative to rest: just under the chin of an
+-- R15 archer holding the bow at arm's length (worked out in
+-- blender/bow_animation.py, which makes the draw animation to match).
+local PULL_BACK = Vector3.new(-3.19, 0, 0)
 local BAND_THICKNESS = 0.3
 local BAND_THINNING = 0.1 -- the string gets thinner as it stretches
 

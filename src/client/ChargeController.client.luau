@@ -4,7 +4,9 @@
 -- bouncing charge meter, the slingshot band pulling back and snapping,
 -- the stage word that pops up on release (with a ring burst for the best ones),
 -- a camera that follows the egg, and a banner naming the zone it lands in.
--- The hatch itself is in HatchController.
+-- While drawing, the player is turned down the lane and held in place (anchored)
+-- until the release is over. The shot camera and impact frames are in
+-- ShotCamera, the body animation in PoseController; the hatch is in HatchController.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -26,15 +28,14 @@ local camera = workspace.CurrentCamera
 local FONT = Enum.Font.FredokaOne
 local LAUNCH_KEY = Enum.KeyCode.E
 
-local NORMAL_FOV = 70
-local CHARGE_FOV = 80 -- the camera pulls back a little while charging
-
 local charging = false
 local chargeStart = 0
 local flying = false
 local chargeInput: InputObject? = nil -- the touch, click or key that started the charge
 local chargedByTool = false -- started by Tool.Activated instead
 local lockedHumanoid: Humanoid? = nil -- turned to face the lane while charging
+local anchoredRoot: BasePart? = nil -- held in place from the draw until the release is over
+local RELEASE_HOLD = 0.5 -- seconds the player stays put after letting go
 
 -- Drives the band snap-back after release; tweening it springs the pouch forward.
 local pull = Instance.new("NumberValue")
@@ -376,10 +377,30 @@ local function faceLane()
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if root and root:IsA("BasePart") then
 		root.CFrame = CFrame.lookAt(root.Position, root.Position + Vector3.xAxis)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.Anchored = true -- feet planted: no walking or sliding mid-shot
+		anchoredRoot = root
 	end
 	if humanoid then
 		humanoid.AutoRotate = false
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
 		lockedHumanoid = humanoid
+	end
+end
+
+-- Lets the player move again (after the release, unless a new draw has started).
+local function unlockPlayer()
+	if charging then
+		return
+	end
+	if anchoredRoot then
+		anchoredRoot.Anchored = false
+		anchoredRoot = nil
+	end
+	if lockedHumanoid then
+		lockedHumanoid.AutoRotate = true
+		lockedHumanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		lockedHumanoid = nil
 	end
 end
 
@@ -410,7 +431,6 @@ local function startCharge(input: InputObject?)
 	meter.Visible = true
 	Remotes.ChargeStart:FireServer()
 	TweenService:Create(buttonScale, TweenInfo.new(0.15), { Scale = 0.88 }):Play()
-	TweenService:Create(camera, TweenInfo.new(0.8, Enum.EasingStyle.Sine), { FieldOfView = CHARGE_FOV }):Play()
 end
 
 local function releaseCharge()
@@ -421,19 +441,18 @@ local function releaseCharge()
 	lastRelease = os.clock()
 	chargeInput = nil
 	chargedByTool = false
+	local stage = Charge.stageFor(Charge.valueAt(os.clock() - chargeStart)).Name
 	LocalCharge.charging = false
-	LocalCharge.releasedAt = os.clock()
+	LocalCharge.releaseStage = stage
 	LocalCharge.releasePull = pull.Value
-	if lockedHumanoid then
-		lockedHumanoid.AutoRotate = true
-		lockedHumanoid = nil
-	end
+	LocalCharge.releasedAt = os.clock()
+	local hold = RELEASE_HOLD + if stage == stages[1].Name then Config.Charge.PerfectFreeze else 0
+	task.delay(hold, unlockPlayer)
 	Remotes.ChargeRelease:FireServer()
 	local tween = TweenService:Create(pull, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Value = 0 })
 	snapTween = tween
 	tween:Play()
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	TweenService:Create(camera, TweenInfo.new(0.4, Enum.EasingStyle.Back), { FieldOfView = NORMAL_FOV }):Play()
 	task.delay(0.4, function()
 		if not charging then
 			meter.Visible = false
@@ -502,7 +521,7 @@ RunService.RenderStepped:Connect(function()
 		local value = Charge.valueAt(os.clock() - chargeStart)
 		needle.Position = UDim2.fromScale(0.5, 1 - value)
 		needle.BackgroundColor3 = Charge.stageFor(value).Color
-		pull.Value = value
+		pull.Value = SlingshotModel.drawFor(value)
 	end
 end)
 
