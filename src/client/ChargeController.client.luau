@@ -531,14 +531,25 @@ Remotes.EggLaunched.OnClientEvent:Connect(function(egg: BasePart, stageName: str
 	showDistanceBar(egg)
 	-- The server removes the egg once it has hatched; then the camera comes home
 	-- and the player can launch again.
+	local done = false
 	local connection: RBXScriptConnection
+	local function finish()
+		if done then
+			return
+		end
+		done = true
+		connection:Disconnect()
+		flying = false
+		followCharacter()
+	end
 	connection = egg.AncestryChanged:Connect(function()
 		if not egg:IsDescendantOf(workspace) then
-			connection:Disconnect()
-			flying = false
-			followCharacter()
+			finish()
 		end
 	end)
+	-- Backstop: if the removal never reaches this client (streaming, a dropped
+	-- update), don't leave the player unable to launch again.
+	task.delay(32, finish)
 end)
 
 Remotes.EggLanded.OnClientEvent:Connect(function(zoneIndex: number, _stageName: string, _distance: number)
