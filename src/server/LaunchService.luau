@@ -26,12 +26,19 @@ local LaunchService = {}
 
 local GROUND_Y = 2 -- egg rests on the lane surface (y = 0) with its centre 2 studs up
 local BOUNCE_SECONDS = 0.5 -- two little hops after touching down
-local LANE_EDGE_MARGIN = 30 -- keep landings this far inside the walls (props line the edges)
+local LANE_EDGE_MARGIN = 14 -- keep landings this far inside the walls (props line the edges)
 local LANDING_PULL = 0.5 -- landing Z = player Z times this
 local FLIGHT_TIMEOUT = 30 -- seconds; a launch is always cleared by then, whatever happens
 
 local chargeStarted: { [Player]: number } = {}
 local inFlight: { [Player]: boolean } = {}
+
+-- The client reads the EggInFlight attribute too, so it won't start a charge
+-- while your egg is still in the air.
+local function setInFlight(player: Player, flying: boolean)
+	inFlight[player] = if flying then true else nil
+	player:SetAttribute("EggInFlight", if flying then true else nil)
+end
 
 -- The player's root part, if they are alive, holding the slingshot, standing in
 -- the hub and their data has loaded.
@@ -167,8 +174,8 @@ local function onChargeRelease(player: Player)
 	local tool = character:FindFirstChild(SlingshotModel.NAME)
 	local pouch = tool and tool:FindFirstChild("Pouch")
 	local from = if pouch and pouch:IsA("BasePart") then pouch.Position else root.Position + Vector3.new(0, 3, 0)
-	-- Land in line with the player, pulled a little toward the middle so eggs fly
-	-- down the corridor, and kept inside the zigzag walls.
+	-- Land in line with the player, pulled toward the middle so eggs fly down the
+	-- lane, and kept inside its walls.
 	local landX = Config.Lane.StartX + distance
 	local landZ = math.clamp(
 		root.Position.Z * LANDING_PULL,
@@ -177,7 +184,7 @@ local function onChargeRelease(player: Player)
 	)
 	local to = Vector3.new(landX, GROUND_Y, landZ)
 
-	inFlight[player] = true
+	setInFlight(player, true)
 	local data = DataService.get(player)
 	local egg = makeEgg(from, stage.Color, if data then data.EggLevel else 0)
 	Remotes.EggLaunched:FireClient(player, egg, stage.Name)
@@ -192,7 +199,7 @@ local function onChargeRelease(player: Player)
 		cleared = true
 		local holder = egg.Parent or egg
 		holder:Destroy()
-		inFlight[player] = nil
+		setInFlight(player, false)
 		if pet and player.Parent then
 			PlotService.refresh(player)
 		end
@@ -240,7 +247,7 @@ local function onChargeRelease(player: Player)
 			local refreshOk, err = pcall(clear, pet)
 			if not refreshOk then
 				warn(`[LaunchService] clearing egg failed for {player.Name}: {err}`)
-				inFlight[player] = nil
+				setInFlight(player, false)
 			end
 		end)
 	end)

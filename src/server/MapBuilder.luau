@@ -1,10 +1,10 @@
 --!strict
 -- Builds the map from code, following Tmuk's layout sketch: a studded green hub
--- ringed by checkered walls, with the 4 fenced plots (12 pedestals each) in an
--- oval around a middle plaza; the hub's front corners cut in diagonally (the
--- Slingshot and Egg shops stand there) into a narrow corridor, which opens into
--- the wide zone area with zigzag walls. Everything goes into workspace.Map, and
--- Scenery adds the decoration. Keep part names stable so code can find them.
+-- ringed by checkered walls, with the 4 fenced plots (12 pedestals each) in a
+-- row; the hub's front corners cut in diagonally (the Bow and Egg shops stand
+-- against those walls) to one straight lane, the same width all the way: a short
+-- walkway, then the 8 zones. Everything goes into workspace.Map, and Scenery adds
+-- the decoration. Keep part names stable so code can find them.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -27,9 +27,9 @@ for _, x in { 9, -3, -15 } do
 end
 assert(#PEDESTAL_SPOTS == Config.Plot.MaxPedestals, "pedestal spots must match Config.Plot.MaxPedestals")
 
--- The plots sit in an oval around this plaza, each with its gate facing the middle.
-local PLAZA_CENTER = Vector3.new(-125, 0, 0)
-local PLOT_RING = Vector2.new(62, 62) -- oval radius along X and Z, to each plot's centre
+-- The plots stand in a row across the hub, gates facing the lane (+X).
+local PLOT_X = -150
+local PLOT_SPACING = 46
 local PLOT_SIZE = Vector3.new(50, 1, 34) -- X is front-to-back (gate at +X), Z is across
 
 -- Two bright lime greens for the checkered, studded hub floor.
@@ -228,7 +228,7 @@ local function buildWalls(hub: Folder)
 	walls.Name = "Walls"
 	local back = Config.Hub.MinX - WALL_THICKNESS / 2
 	local half = Config.Hub.Width / 2 + WALL_THICKNESS / 2
-	local corridor = Config.Lane.CorridorWidth / 2 + WALL_THICKNESS / 2
+	local corridor = Config.Lane.Width / 2 + WALL_THICKNESS / 2
 	wallRun(walls, Vector3.new(back, 0, -half), Vector3.new(back, 0, half))
 	for _, side in { -1, 1 } do
 		wallPath(walls, {
@@ -276,14 +276,10 @@ local function dropRatesText(rates: { number }): string
 	return table.concat(items, "  ")
 end
 
--- Where plot N sits: spread around the oval (diagonal spots for 4 plots), turned
--- so its front (local +X, where the gate is) faces the plaza in the middle.
+-- Where plot N sits: in a row along Z, centred on the hub, gate (+X) toward the lane.
 function MapBuilder.plotCFrame(index: number): CFrame
-	local angle = (index - 0.5) / MapBuilder.PLOT_COUNT * math.pi * 2
-	local position = PLAZA_CENTER + Vector3.new(math.cos(angle) * PLOT_RING.X, 0.5, math.sin(angle) * PLOT_RING.Y)
-	local facing = Vector3.new(PLAZA_CENTER.X, position.Y, PLAZA_CENTER.Z)
-	-- lookAt points -Z at the plaza; a quarter turn makes +X point there instead.
-	return CFrame.lookAt(position, facing) * CFrame.Angles(0, math.pi / 2, 0)
+	local z = (index - (MapBuilder.PLOT_COUNT + 1) / 2) * PLOT_SPACING
+	return CFrame.new(PLOT_X, 0.5, z)
 end
 
 -- A small kiosk (posts, a counter, a coloured roof and a sign) with a glowing
@@ -433,8 +429,8 @@ local function buildHub(map: Folder): { CFrame }
 	spawn.Name = "Spawn"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(12, 1, 12)
-	-- Between the plaza and the corridor, facing the lane so players spawn looking down it.
-	spawn.CFrame = CFrame.lookAt(Vector3.new(-52, 0.5, 0), Vector3.new(0, 0.5, 0))
+	-- In front of the plots, facing the lane so players spawn looking down it.
+	spawn.CFrame = CFrame.lookAt(Vector3.new(-90, 0.5, 0), Vector3.new(0, 0.5, 0))
 	spawn.Color = Color3.fromRGB(255, 255, 255)
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Neutral = true
@@ -442,14 +438,13 @@ local function buildHub(map: Folder): { CFrame }
 	return plotFrames
 end
 
--- The corridor floor from the hub to the zones: hub-style green squares with big
--- white arrows pointing down the lane.
+-- The walkway floor from the hub to the zones: hub-style green squares.
 local function buildCorridor(lane: Instance)
 	local corridor = Instance.new("Folder")
 	corridor.Name = "Corridor"
 	corridor.Parent = lane
 	local length = Config.Lane.StartX - Config.Hub.MaxX
-	local width = Config.Lane.CorridorWidth + WALL_THICKNESS * 2
+	local width = Config.Lane.Width + WALL_THICKNESS * 2
 	local columns = math.ceil(length / FLOOR_TILE)
 	local rows = math.ceil(width / FLOOR_TILE)
 	for col = 0, columns - 1 do
@@ -469,22 +464,6 @@ local function buildCorridor(lane: Instance)
 			})
 		end
 	end
-	-- Arrows: two white bars in a > shape, pointing down the lane (+X).
-	for i = 1, 3 do
-		local tip = Vector3.new(Config.Hub.MaxX + length * i / 4 + 8, 0.08, 0)
-		for _, side in { -1, 1 } do
-			local tail = tip + Vector3.new(-12, 0, side * 14)
-			local arrow = part({
-				Name = "Arrow",
-				Size = Vector3.new(3, 0.15, (tip - tail).Magnitude + 3),
-				CFrame = CFrame.lookAt((tip + tail) / 2, tip),
-				Color = Color3.new(1, 1, 1),
-				CanCollide = false,
-				Parent = corridor,
-			})
-			arrow.Transparency = 0.15
-		end
-	end
 end
 
 local function buildLane(map: Folder)
@@ -497,11 +476,10 @@ local function buildLane(map: Folder)
 
 	buildCorridor(laneFolder)
 
-	-- Walls: straight down both sides of the corridor, then zigzagging out and
-	-- along the zone area (Lane.Edges), and across the far end.
+	-- Walls: straight down both sides of the lane (Lane.Edges), and across the far end.
 	local laneWalls = Instance.new("Folder")
 	laneWalls.Name = "Walls"
-	local corridorZ = Config.Lane.CorridorWidth / 2 + WALL_THICKNESS / 2
+	local corridorZ = Config.Lane.Width / 2 + WALL_THICKNESS / 2
 	local ends: { [number]: Vector3 } = {}
 	for _, side in { -1, 1 } do
 		local points = { Vector3.new(Config.Hub.MaxX, 0, side * corridorZ) }

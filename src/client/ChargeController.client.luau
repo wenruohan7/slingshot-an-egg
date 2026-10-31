@@ -383,8 +383,17 @@ local function faceLane()
 	end
 end
 
+-- Whether your egg is still in the air: from the server's EggInFlight attribute,
+-- this client's own view of the flight, and a short lock right after letting go
+-- (before the server's answer arrives).
+local RELEASE_LOCK = 1
+local lastRelease = -math.huge
+local function eggInAir(): boolean
+	return flying or player:GetAttribute("EggInFlight") == true or os.clock() - lastRelease < RELEASE_LOCK
+end
+
 local function startCharge(input: InputObject?)
-	if charging or flying or not canLaunch() then
+	if charging or eggInAir() or not canLaunch() then
 		return
 	end
 	charging = true
@@ -409,6 +418,7 @@ local function releaseCharge()
 		return
 	end
 	charging = false
+	lastRelease = os.clock()
 	chargeInput = nil
 	chargedByTool = false
 	LocalCharge.charging = false
@@ -483,7 +493,7 @@ end
 RunService.RenderStepped:Connect(function()
 	hookTool(heldSlingshot())
 	local ready = canLaunch()
-	button.Visible = (charging or not flying) and ready
+	button.Visible = (charging or not eggInAir()) and ready
 	if charging and not ready then
 		-- Put away or walked off the hub mid-charge: let go.
 		releaseCharge()

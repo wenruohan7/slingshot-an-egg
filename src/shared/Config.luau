@@ -15,14 +15,13 @@ Config.Hub = {
 	ChamferX = -60, -- the side walls turn in diagonally from here to the corridor
 }
 
--- Lane layout (Tmuk's sketch): a narrow walled corridor runs from the hub's front
--- (X = 0) to StartX, then opens into the wide zone area with jagged walls.
--- Zone 1 starts at StartX, and launch distance is measured from there.
+-- Lane layout (Tmuk's sketch): one straight walled lane, the same width all the
+-- way, from the hub's front (X = 0). The first stretch, up to StartX, is a plain
+-- walkway; zone 1 starts at StartX, and launch distance is measured from there.
 Config.Lane = {
 	StartX = 100,
-	CorridorWidth = 80, -- studs, along Z
+	Width = 80, -- studs, along Z; the hub's front corners narrow down to this
 	ZoneLength = 250, -- studs per zone
-	Width = 300, -- typical width of the zone area; the jagged walls wander +-30 around it
 }
 
 -- The 8 zones, nearest first. Drop rates are percentages per rarity and add up to 100.
@@ -90,18 +89,18 @@ Config.Plot = {
 -- Material colour the built-in model; a real model with the same Name in
 -- ReplicatedStorage.SlingshotModels replaces it (see the README).
 Config.Slingshots = {
-	{ Name = "Wooden Slingshot", Power = 1, Cost = 0, Frame = Color3.fromRGB(176, 122, 78), Accent = Color3.fromRGB(255, 120, 160), Band = Color3.fromRGB(235, 60, 110), Material = Enum.Material.Wood },
-	{ Name = "Sturdy Slingshot", Power = 1.16, Cost = 100, Frame = Color3.fromRGB(120, 80, 50), Accent = Color3.fromRGB(240, 240, 240), Band = Color3.fromRGB(60, 60, 60), Material = Enum.Material.Wood },
-	{ Name = "Leafy Slingshot", Power = 1.35, Cost = 600, Frame = Color3.fromRGB(100, 160, 70), Accent = Color3.fromRGB(255, 220, 90), Band = Color3.fromRGB(80, 200, 90), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Iron Slingshot", Power = 1.57, Cost = 3000, Frame = Color3.fromRGB(150, 155, 165), Accent = Color3.fromRGB(70, 75, 85), Band = Color3.fromRGB(40, 40, 45), Material = Enum.Material.Metal },
-	{ Name = "Candy Slingshot", Power = 1.82, Cost = 15000, Frame = Color3.fromRGB(255, 150, 200), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(120, 210, 255), Material = Enum.Material.SmoothPlastic },
-	{ Name = "Golden Slingshot", Power = 2.1, Cost = 80000, Frame = Color3.fromRGB(255, 200, 60), Accent = Color3.fromRGB(255, 240, 160), Band = Color3.fromRGB(200, 40, 40), Material = Enum.Material.Foil },
-	{ Name = "Ice Slingshot", Power = 2.45, Cost = 400000, Frame = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(80, 160, 255), Material = Enum.Material.Ice },
-	{ Name = "Lava Slingshot", Power = 2.85, Cost = 2500000, Frame = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 110, 30), Band = Color3.fromRGB(255, 170, 40), Material = Enum.Material.Basalt },
-	{ Name = "Crystal Slingshot", Power = 3.3, Cost = 15000000, Frame = Color3.fromRGB(190, 140, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(150, 90, 255), Material = Enum.Material.Glass },
-	{ Name = "Rainbow Slingshot", Power = 3.85, Cost = 100000000, Frame = Color3.fromRGB(255, 120, 200), Accent = Color3.fromRGB(120, 230, 255), Band = Color3.fromRGB(255, 230, 80), Material = Enum.Material.Neon },
-	{ Name = "Galaxy Slingshot", Power = 4.5, Cost = 800000000, Frame = Color3.fromRGB(60, 30, 120), Accent = Color3.fromRGB(150, 220, 255), Band = Color3.fromRGB(255, 120, 255), Material = Enum.Material.Neon },
-	{ Name = "Moon Slingshot", Power = 5.3, Cost = 6000000000, Frame = Color3.fromRGB(230, 230, 245), Accent = Color3.fromRGB(255, 230, 120), Band = Color3.fromRGB(140, 160, 255), Material = Enum.Material.Marble },
+	{ Name = "Wooden Bow", Power = 1, Cost = 0, Frame = Color3.fromRGB(176, 122, 78), Accent = Color3.fromRGB(255, 120, 160), Band = Color3.fromRGB(235, 60, 110), Material = Enum.Material.Wood },
+	{ Name = "Sturdy Bow", Power = 1.16, Cost = 100, Frame = Color3.fromRGB(120, 80, 50), Accent = Color3.fromRGB(240, 240, 240), Band = Color3.fromRGB(60, 60, 60), Material = Enum.Material.Wood },
+	{ Name = "Leafy Bow", Power = 1.35, Cost = 600, Frame = Color3.fromRGB(100, 160, 70), Accent = Color3.fromRGB(255, 220, 90), Band = Color3.fromRGB(80, 200, 90), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Iron Bow", Power = 1.57, Cost = 3000, Frame = Color3.fromRGB(150, 155, 165), Accent = Color3.fromRGB(70, 75, 85), Band = Color3.fromRGB(40, 40, 45), Material = Enum.Material.Metal },
+	{ Name = "Candy Bow", Power = 1.82, Cost = 15000, Frame = Color3.fromRGB(255, 150, 200), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(120, 210, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Golden Bow", Power = 2.1, Cost = 80000, Frame = Color3.fromRGB(255, 200, 60), Accent = Color3.fromRGB(255, 240, 160), Band = Color3.fromRGB(200, 40, 40), Material = Enum.Material.Foil },
+	{ Name = "Ice Bow", Power = 2.45, Cost = 400000, Frame = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(80, 160, 255), Material = Enum.Material.Ice },
+	{ Name = "Lava Bow", Power = 2.85, Cost = 2500000, Frame = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 110, 30), Band = Color3.fromRGB(255, 170, 40), Material = Enum.Material.Basalt },
+	{ Name = "Crystal Bow", Power = 3.3, Cost = 15000000, Frame = Color3.fromRGB(190, 140, 255), Accent = Color3.fromRGB(255, 255, 255), Band = Color3.fromRGB(150, 90, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow Bow", Power = 3.85, Cost = 100000000, Frame = Color3.fromRGB(255, 120, 200), Accent = Color3.fromRGB(120, 230, 255), Band = Color3.fromRGB(255, 230, 80), Material = Enum.Material.Neon },
+	{ Name = "Galaxy Bow", Power = 4.5, Cost = 800000000, Frame = Color3.fromRGB(60, 30, 120), Accent = Color3.fromRGB(150, 220, 255), Band = Color3.fromRGB(255, 120, 255), Material = Enum.Material.Neon },
+	{ Name = "Moon Bow", Power = 5.3, Cost = 6000000000, Frame = Color3.fromRGB(230, 230, 245), Accent = Color3.fromRGB(255, 230, 120), Band = Color3.fromRGB(140, 160, 255), Material = Enum.Material.Marble },
 }
 
 -- Eggs, bought one after another in the Shop. Each one changes the egg you

@@ -355,11 +355,8 @@ local function hubSpotFree(x: number, z: number, plots: { CFrame }): boolean
 			return false
 		end
 	end
-	if x > -75 and math.abs(z) < 30 then
-		return false -- the spawn and the open run up to the corridor
-	end
-	if (Vector2.new(x, z) - Vector2.new(-125, 0)).Magnitude < 34 then
-		return false -- the plaza in the middle of the plots
+	if x > -100 and math.abs(z) < 25 then
+		return false -- the spawn and the open run up to the lane
 	end
 	return true
 end
@@ -370,10 +367,10 @@ local function buildHubDecor(parent: Instance, plots: { CFrame })
 	decor.Parent = parent
 
 	local minX, maxX = Config.Hub.MinX, Config.Hub.MaxX
-	-- Candy poles either side of the corridor's mouth and where it opens into the zones.
+	-- Candy poles either side of the lane's mouth and where the zones begin.
 	for _, x in { Config.Hub.MaxX + 6, Config.Lane.StartX - 6 } do
 		for _, side in { -1, 1 } do
-			candyPole(decor, Vector3.new(x, 0, side * (Config.Lane.CorridorWidth / 2 - 4)), 1.2)
+			candyPole(decor, Vector3.new(x, 0, side * (Config.Lane.Width / 2 - 4)), 1.2)
 		end
 	end
 	local edge = Config.Hub.Width / 2
@@ -430,9 +427,10 @@ end
 -- Lane
 --------------------------------------------------------------------------------
 
--- Props sit in a band along the zigzag walls, this far in from the wall.
-local EDGE_NEAR = 26
-local EDGE_FAR = 7
+-- Props sit in a band along the walls, this far in from the wall. Eggs land
+-- in the middle (LaunchService keeps them clear of this band).
+local EDGE_NEAR = 13
+local EDGE_FAR = 5
 
 -- A spot `inset` studs in from the wall on `side`, at X.
 local function wallSpot(x: number, side: number, inset: number): Vector3
@@ -442,9 +440,6 @@ end
 local function edgeSpot(startX: number): Vector3
 	local side = if rng:NextNumber() < 0.5 then -1 else 1
 	local x = startX + rng:NextNumber(10, Config.Lane.ZoneLength - 10)
-	if x < Config.Lane.StartX + 70 then
-		x += 70 -- keep clear of the narrow flare where the corridor opens up
-	end
 	return wallSpot(x, side, rng:NextNumber(EDGE_FAR, EDGE_NEAR))
 end
 
@@ -485,7 +480,7 @@ local THEMES: { [string]: Theme } = {
 	Lagoon = function(folder, startX)
 		for i = 1, 3 do
 			local side = if i % 2 == 0 then 1 else -1
-			pond(folder, wallSpot(startX + i * 70 - 20, side, 22), rng:NextNumber(18, 26))
+			pond(folder, wallSpot(startX + i * 70 - 20, side, 12), rng:NextNumber(10, 14))
 		end
 		repeatAt(10, startX, function(at) palm(folder, at, rng:NextNumber(1, 1.4)) end)
 		repeatAt(5, startX, function(at) rock(folder, at, rng:NextNumber(0.8, 1.3), Color3.fromRGB(235, 215, 165)) end)
@@ -498,8 +493,8 @@ local THEMES: { [string]: Theme } = {
 	end,
 
 	Rainbow = function(folder, startX)
-		rainbowArch(folder, wallSpot(startX + 80, -1, 14), 22)
-		rainbowArch(folder, wallSpot(startX + 180, 1, 14), 22)
+		rainbowArch(folder, wallSpot(startX + 80, -1, 6), 22)
+		rainbowArch(folder, wallSpot(startX + 180, 1, 6), 22)
 		repeatAt(10, startX, function(at) lollipop(folder, at, rng:NextNumber(1, 1.5)) end)
 		repeatAt(6, startX, function(at) candyPole(folder, at, rng:NextNumber(1, 1.4)) end)
 	end,

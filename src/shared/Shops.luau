@@ -16,27 +16,27 @@ export type Shop = {
 
 -- The Slingshot and Egg shops stand against the two diagonal walls at the hub's
 -- front corners (where it narrows into the corridor), facing in toward the middle.
--- Rebirth sits in the plaza in the middle of the ring of plots, facing the lane.
+-- Rebirth stands in front of the last plot, facing the lane.
 local LIST: { Shop } = {
 	{
 		Kind = "Slingshot",
-		Title = "Slingshot Shop",
+		Title = "Bow Shop",
 		Color = Color3.fromRGB(255, 120, 160),
-		Position = Vector3.new(-35.3, 0, -70.4),
+		Position = Vector3.new(-33.8, 0, -73.7),
 		Facing = Vector3.new(-0.759, 0, 0.651).Unit,
 	},
 	{
 		Kind = "Egg",
 		Title = "Egg Shop",
 		Color = Color3.fromRGB(255, 205, 80),
-		Position = Vector3.new(-35.3, 0, 70.4),
+		Position = Vector3.new(-33.8, 0, 73.7),
 		Facing = Vector3.new(-0.759, 0, -0.651).Unit,
 	},
 	{
 		Kind = "Rebirth",
 		Title = "Rebirth",
 		Color = Color3.fromRGB(150, 110, 255),
-		Position = Vector3.new(-142, 0, 0),
+		Position = Vector3.new(-100, 0, 62),
 		Facing = Vector3.xAxis,
 	},
 }
