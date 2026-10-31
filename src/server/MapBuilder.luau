@@ -1,14 +1,17 @@
 --!strict
--- Builds the greybox map from code: the studded green hub ringed by checkered
--- walls, 4 fenced plots (each with 12 pedestals), the shop stands with a glowing
--- circle in front of each, and the 8-zone lane. Everything goes into workspace.Map.
--- Real art replaces these blocks later; keep part names stable so code can find them.
+-- Builds the map from code, following Tmuk's layout sketch: a studded green hub
+-- ringed by checkered walls, with the 4 fenced plots (12 pedestals each) in an
+-- oval around a middle plaza; the hub's front corners cut in diagonally (the
+-- Slingshot and Egg shops stand there) into a narrow corridor, which opens into
+-- the wide zone area with zigzag walls. Everything goes into workspace.Map, and
+-- Scenery adds the decoration. Keep part names stable so code can find them.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Lane = require(Shared.Lane)
 local Shops = require(Shared.Shops)
+local Scenery = require(script.Parent.Scenery)
 
 local MapBuilder = {}
 
@@ -24,13 +27,15 @@ for _, x in { 9, -3, -15 } do
 end
 assert(#PEDESTAL_SPOTS == Config.Plot.MaxPedestals, "pedestal spots must match Config.Plot.MaxPedestals")
 
-local PLOT_X = -150
-local PLOT_SPACING = 46
+-- The plots sit in an oval around this plaza, each with its gate facing the middle.
+local PLAZA_CENTER = Vector3.new(-125, 0, 0)
+local PLOT_RING = Vector2.new(62, 62) -- oval radius along X and Z, to each plot's centre
+local PLOT_SIZE = Vector3.new(50, 1, 34) -- X is front-to-back (gate at +X), Z is across
 
--- Two greens for the checkered, studded hub floor.
-local FLOOR_COLORS = { Color3.fromRGB(118, 205, 72), Color3.fromRGB(104, 190, 62) }
+-- Two bright lime greens for the checkered, studded hub floor.
+local FLOOR_COLORS = { Color3.fromRGB(132, 226, 60), Color3.fromRGB(118, 212, 50) }
 local FLOOR_TILE = 20 -- studs per floor square
-local PLOT_COLOR = Color3.fromRGB(150, 225, 100)
+local PLOT_COLOR = Color3.fromRGB(165, 236, 105)
 local WOOD_COLOR = Color3.fromRGB(170, 120, 80)
 
 -- The walls around the hub: two checkered browns with a strip of grass on top.
@@ -96,15 +101,15 @@ local function fenceRun(parent: Instance, a: Vector3, b: Vector3)
 	bar(parent, "Rail", a + high, b + high, 0.6, FENCE_RAIL_COLOR)
 end
 
--- A fence around a plot, open in the middle of the side facing the lane (+X).
+-- A fence around a plot, open in the middle of its front (local +X) side.
 local function buildFence(plot: BasePart)
 	local fence = Instance.new("Model")
 	fence.Name = "Fence"
-	local top = plot.Position.Y + plot.Size.Y / 2
+	local top = plot.Size.Y / 2
 	local halfX = plot.Size.X / 2 - 0.5
 	local halfZ = plot.Size.Z / 2 - 0.5
 	local function corner(x: number, z: number): Vector3
-		return Vector3.new(plot.Position.X + x, top, plot.Position.Z + z)
+		return plot.CFrame:PointToWorldSpace(Vector3.new(x, top, z))
 	end
 	fenceRun(fence, corner(-halfX, -halfZ), corner(-halfX, halfZ)) -- back
 	fenceRun(fence, corner(-halfX, -halfZ), corner(halfX, -halfZ)) -- sides
@@ -127,6 +132,14 @@ local function buildFloor(hub: Folder)
 			local x1 = math.min(x0 + FLOOR_TILE, Config.Hub.MaxX)
 			local z0 = -Config.Hub.Width / 2 + row * FLOOR_TILE
 			local z1 = math.min(z0 + FLOOR_TILE, Config.Hub.Width / 2)
+			-- Skip squares wholly outside the diagonal front corners.
+			local nearZ = math.min(math.abs(z0), math.abs(z1))
+			if z0 < 0 and z1 > 0 then
+				nearZ = 0
+			end
+			if nearZ > Lane.hubHalfWidthAt(x0) + 2 then
+				continue
+			end
 			part({
 				Name = "Tile",
 				Size = Vector3.new(x1 - x0, 2, z1 - z0),
@@ -178,16 +191,52 @@ local function wallRun(parent: Instance, a: Vector3, b: Vector3, tile: Vector2?)
 	})
 end
 
--- Walls on the back and both sides of the hub; the side facing the lane stays open.
+-- A wall along a path of corners, with a pillar at each corner so the joints
+-- where the wall changes direction look solid.
+local function wallPath(parent: Instance, points: { Vector3 }, tile: Vector2?, skipFirstPillar: boolean?)
+	for i = 2, #points do
+		wallRun(parent, points[i - 1], points[i], tile)
+	end
+	for i, point in points do
+		if i == 1 and skipFirstPillar then
+			continue -- another wall already put a pillar here
+		end
+		part({
+			Name = "Pillar",
+			Size = Vector3.new(WALL_THICKNESS + 2, WALL_HEIGHT + 2, WALL_THICKNESS + 2),
+			Position = point + Vector3.new(0, (WALL_HEIGHT + 2) / 2, 0),
+			Color = WALL_COLORS[2],
+			Material = Enum.Material.Plastic,
+			Parent = parent,
+		})
+		part({
+			Name = "Grass",
+			Size = Vector3.new(WALL_THICKNESS + 3, 1.5, WALL_THICKNESS + 3),
+			Position = point + Vector3.new(0, WALL_HEIGHT + 2.75, 0),
+			Color = FLOOR_COLORS[1],
+			Material = Enum.Material.Plastic,
+			TopSurface = Enum.SurfaceType.Studs,
+			Parent = parent,
+		})
+	end
+end
+
+-- The hub's walls: across the back, down both sides, then diagonally in to the
+-- corridor's mouth. The front stays open into the corridor.
 local function buildWalls(hub: Folder)
 	local walls = Instance.new("Folder")
 	walls.Name = "Walls"
 	local back = Config.Hub.MinX - WALL_THICKNESS / 2
-	local side = Config.Hub.Width / 2 + WALL_THICKNESS / 2
-	local front = Config.Hub.MaxX
-	wallRun(walls, Vector3.new(back, 0, -side - WALL_THICKNESS / 2), Vector3.new(back, 0, side + WALL_THICKNESS / 2))
-	wallRun(walls, Vector3.new(back + WALL_THICKNESS / 2, 0, -side), Vector3.new(front, 0, -side))
-	wallRun(walls, Vector3.new(back + WALL_THICKNESS / 2, 0, side), Vector3.new(front, 0, side))
+	local half = Config.Hub.Width / 2 + WALL_THICKNESS / 2
+	local corridor = Config.Lane.CorridorWidth / 2 + WALL_THICKNESS / 2
+	wallRun(walls, Vector3.new(back, 0, -half), Vector3.new(back, 0, half))
+	for _, side in { -1, 1 } do
+		wallPath(walls, {
+			Vector3.new(back, 0, side * half),
+			Vector3.new(Config.Hub.ChamferX, 0, side * half),
+			Vector3.new(Config.Hub.MaxX, 0, side * corridor),
+		})
+	end
 	walls.Parent = hub
 end
 
@@ -227,9 +276,14 @@ local function dropRatesText(rates: { number }): string
 	return table.concat(items, "  ")
 end
 
--- Position of plot N along Z, centred on the hub.
-function MapBuilder.slotZ(index: number): number
-	return (index - (MapBuilder.PLOT_COUNT + 1) / 2) * PLOT_SPACING
+-- Where plot N sits: spread around the oval (diagonal spots for 4 plots), turned
+-- so its front (local +X, where the gate is) faces the plaza in the middle.
+function MapBuilder.plotCFrame(index: number): CFrame
+	local angle = (index - 0.5) / MapBuilder.PLOT_COUNT * math.pi * 2
+	local position = PLAZA_CENTER + Vector3.new(math.cos(angle) * PLOT_RING.X, 0.5, math.sin(angle) * PLOT_RING.Y)
+	local facing = Vector3.new(PLAZA_CENTER.X, position.Y, PLAZA_CENTER.Z)
+	-- lookAt points -Z at the plaza; a quarter turn makes +X point there instead.
+	return CFrame.lookAt(position, facing) * CFrame.Angles(0, math.pi / 2, 0)
 end
 
 -- A small kiosk (posts, a counter, a coloured roof and a sign) with a glowing
@@ -333,7 +387,7 @@ local function buildStand(parent: Instance, shop: Shops.Shop)
 	stand.Parent = parent
 end
 
-local function buildHub(map: Folder)
+local function buildHub(map: Folder): { CFrame }
 	local hub = Instance.new("Folder")
 	hub.Name = "Hub"
 	hub.Parent = map
@@ -342,13 +396,12 @@ local function buildHub(map: Folder)
 	buildFloor(hub)
 	buildWalls(hub)
 
+	local plotFrames = {}
 	for i = 1, MapBuilder.PLOT_COUNT do
-		local z = MapBuilder.slotZ(i)
-
 		local plot = part({
 			Name = "Plot" .. i,
-			Size = Vector3.new(50, 1, 34),
-			Position = Vector3.new(PLOT_X, 0.5, z),
+			Size = PLOT_SIZE,
+			CFrame = MapBuilder.plotCFrame(i),
 			Color = PLOT_COLOR,
 			Material = Enum.Material.Plastic,
 			TopSurface = Enum.SurfaceType.Studs,
@@ -357,14 +410,14 @@ local function buildHub(map: Folder)
 		buildFence(plot)
 		sign(plot, "Plot " .. i, 8, UDim2.fromOffset(260, 70), 400)
 
-		local plotTop = plot.Position.Y + plot.Size.Y / 2
+		table.insert(plotFrames, plot.CFrame)
+		local plotTop = plot.Size.Y / 2
 		for n, spot in PEDESTAL_SPOTS do
 			local pedestal = part({
 				Name = "Pedestal" .. n,
 				Shape = Enum.PartType.Cylinder,
 				Size = Vector3.new(1.5, 5, 5),
-				CFrame = CFrame.new(plot.Position.X + spot.X, plotTop + 0.75, plot.Position.Z + spot.Y)
-					* CFrame.Angles(0, 0, math.pi / 2),
+				CFrame = plot.CFrame * CFrame.new(spot.X, plotTop + 0.75, spot.Y) * CFrame.Angles(0, 0, math.pi / 2),
 				Color = Color3.fromRGB(240, 240, 250),
 				Parent = plot,
 			})
@@ -380,12 +433,58 @@ local function buildHub(map: Folder)
 	spawn.Name = "Spawn"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(12, 1, 12)
-	-- Face the lane, so players spawn looking down it.
-	spawn.CFrame = CFrame.lookAt(Vector3.new(-90, 0.5, 0), Vector3.new(0, 0.5, 0))
+	-- Between the plaza and the corridor, facing the lane so players spawn looking down it.
+	spawn.CFrame = CFrame.lookAt(Vector3.new(-52, 0.5, 0), Vector3.new(0, 0.5, 0))
 	spawn.Color = Color3.fromRGB(255, 255, 255)
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Neutral = true
 	spawn.Parent = hub
+	return plotFrames
+end
+
+-- The corridor floor from the hub to the zones: hub-style green squares with big
+-- white arrows pointing down the lane.
+local function buildCorridor(lane: Instance)
+	local corridor = Instance.new("Folder")
+	corridor.Name = "Corridor"
+	corridor.Parent = lane
+	local length = Config.Lane.StartX - Config.Hub.MaxX
+	local width = Config.Lane.CorridorWidth + WALL_THICKNESS * 2
+	local columns = math.ceil(length / FLOOR_TILE)
+	local rows = math.ceil(width / FLOOR_TILE)
+	for col = 0, columns - 1 do
+		for row = 0, rows - 1 do
+			local x0 = Config.Hub.MaxX + col * FLOOR_TILE
+			local x1 = math.min(x0 + FLOOR_TILE, Config.Lane.StartX)
+			local z0 = -width / 2 + row * FLOOR_TILE
+			local z1 = math.min(z0 + FLOOR_TILE, width / 2)
+			part({
+				Name = "Tile",
+				Size = Vector3.new(x1 - x0, 2, z1 - z0),
+				Position = Vector3.new((x0 + x1) / 2, -1, (z0 + z1) / 2),
+				Color = FLOOR_COLORS[(col + row) % 2 + 1],
+				Material = Enum.Material.Plastic,
+				TopSurface = Enum.SurfaceType.Studs,
+				Parent = corridor,
+			})
+		end
+	end
+	-- Arrows: two white bars in a > shape, pointing down the lane (+X).
+	for i = 1, 3 do
+		local tip = Vector3.new(Config.Hub.MaxX + length * i / 4 + 8, 0.08, 0)
+		for _, side in { -1, 1 } do
+			local tail = tip + Vector3.new(-12, 0, side * 14)
+			local arrow = part({
+				Name = "Arrow",
+				Size = Vector3.new(3, 0.15, (tip - tail).Magnitude + 3),
+				CFrame = CFrame.lookAt((tip + tail) / 2, tip),
+				Color = Color3.new(1, 1, 1),
+				CanCollide = false,
+				Parent = corridor,
+			})
+			arrow.Transparency = 0.15
+		end
+	end
 end
 
 local function buildLane(map: Folder)
@@ -396,29 +495,58 @@ local function buildLane(map: Folder)
 	laneFolder.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	laneFolder.Parent = map
 
-	-- Walls down both sides of the lane and across its far end, joining the hub's walls.
-	local laneEnd = Config.Lane.StartX + Lane.Length
-	local wallZ = Config.Lane.Width / 2 + WALL_THICKNESS / 2
+	buildCorridor(laneFolder)
+
+	-- Walls: straight down both sides of the corridor, then zigzagging out and
+	-- along the zone area (Lane.Edges), and across the far end.
 	local laneWalls = Instance.new("Folder")
 	laneWalls.Name = "Walls"
-	wallRun(laneWalls, Vector3.new(Config.Lane.StartX, 0, -wallZ), Vector3.new(laneEnd, 0, -wallZ), LANE_WALL_TILE)
-	wallRun(laneWalls, Vector3.new(Config.Lane.StartX, 0, wallZ), Vector3.new(laneEnd, 0, wallZ), LANE_WALL_TILE)
-	local endX = laneEnd + WALL_THICKNESS / 2
-	wallRun(laneWalls, Vector3.new(endX, 0, -wallZ - WALL_THICKNESS / 2), Vector3.new(endX, 0, wallZ + WALL_THICKNESS / 2), LANE_WALL_TILE)
+	local corridorZ = Config.Lane.CorridorWidth / 2 + WALL_THICKNESS / 2
+	local ends: { [number]: Vector3 } = {}
+	for _, side in { -1, 1 } do
+		local points = { Vector3.new(Config.Hub.MaxX, 0, side * corridorZ) }
+		for _, edge in Lane.Edges[side] do
+			table.insert(points, Vector3.new(edge.X, 0, side * (edge.Y + WALL_THICKNESS / 2)))
+		end
+		wallPath(laneWalls, points, LANE_WALL_TILE, true)
+		ends[side] = points[#points]
+	end
+	local endX = Lane.EndX + WALL_THICKNESS / 2
+	wallRun(laneWalls, Vector3.new(endX, 0, ends[-1].Z), Vector3.new(endX, 0, ends[1].Z), LANE_WALL_TILE)
 	laneWalls.Parent = laneFolder
 
+	-- The ground is wider than the widest point between the walls, so it always
+	-- reaches under them. Each zone is striped in two shades of its colour, which
+	-- also helps you judge how far an egg went.
 	local length = Config.Lane.ZoneLength
+	local groundWidth = (Lane.MaxHalfWidth + 20) * 2
+	local STRIPE = 25
 	for i, zone in Config.Zones do
 		local startX = Lane.zoneStartX(i)
 		local ground = part({
 			Name = "Zone" .. i,
-			Size = Vector3.new(length, 2, Config.Lane.Width),
+			Size = Vector3.new(length, 2, groundWidth),
 			Position = Vector3.new(startX + length / 2, -1, 0),
 			Color = zone.Color,
-			Material = Enum.Material.Grass,
+			Material = Enum.Material.Plastic,
+			TopSurface = Enum.SurfaceType.Studs,
 			Parent = laneFolder,
 		})
 		ground:SetAttribute("ZoneIndex", i)
+		local darker = zone.Color:Lerp(Color3.new(0, 0, 0), 0.07)
+		for s = 1, length / STRIPE - 1, 2 do
+			part({
+				Name = "Stripe",
+				Size = Vector3.new(STRIPE, 0.2, groundWidth),
+				Position = Vector3.new(startX + s * STRIPE + STRIPE / 2, -0.08, 0),
+				Color = darker,
+				Material = Enum.Material.Plastic,
+				TopSurface = Enum.SurfaceType.Studs,
+				CanCollide = false,
+				CanQuery = false,
+				Parent = ground,
+			})
+		end
 
 		-- A sign post on the edge of the lane. Posts alternate sides so the
 		-- names don't stack on top of each other when seen from the hub.
@@ -426,7 +554,7 @@ local function buildLane(map: Folder)
 		local post = part({
 			Name = "Sign",
 			Size = Vector3.new(2, 10, 2),
-			Position = Vector3.new(startX + 6, 5, side * (Config.Lane.Width / 2 - 4)),
+			Position = Vector3.new(startX + 6, 5, side * (Lane.halfWidthAt(startX + 6, side) - 10)),
 			Color = WOOD_COLOR,
 			Parent = ground,
 		})
@@ -450,8 +578,9 @@ local function buildLane(map: Folder)
 		-- White line marking where the zone begins.
 		part({
 			Name = "Line",
-			Size = Vector3.new(1, 0.2, Config.Lane.Width),
+			Size = Vector3.new(1.5, 0.2, groundWidth),
 			Position = Vector3.new(startX, 0.1, 0),
+			Material = Enum.Material.Neon,
 			Color = Color3.new(1, 1, 1),
 			CanCollide = false,
 			Parent = ground,
@@ -474,8 +603,9 @@ function MapBuilder.build(): Folder
 
 	local map = Instance.new("Folder")
 	map.Name = "Map"
-	buildHub(map)
+	local plotFrames = buildHub(map)
 	buildLane(map)
+	Scenery.build(map, plotFrames)
 	map.Parent = workspace
 	return map
 end

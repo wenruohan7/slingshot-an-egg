@@ -26,7 +26,8 @@ local LaunchService = {}
 
 local GROUND_Y = 2 -- egg rests on the lane surface (y = 0) with its centre 2 studs up
 local BOUNCE_SECONDS = 0.5 -- two little hops after touching down
-local LANE_EDGE_MARGIN = 10 -- keep landings this far inside the lane's sides
+local LANE_EDGE_MARGIN = 30 -- keep landings this far inside the walls (props line the edges)
+local LANDING_PULL = 0.5 -- landing Z = player Z times this
 
 local chargeStarted: { [Player]: number } = {}
 local inFlight: { [Player]: boolean } = {}
@@ -165,8 +166,15 @@ local function onChargeRelease(player: Player)
 	local tool = character:FindFirstChild(SlingshotModel.NAME)
 	local pouch = tool and tool:FindFirstChild("Pouch")
 	local from = if pouch and pouch:IsA("BasePart") then pouch.Position else root.Position + Vector3.new(0, 3, 0)
-	local laneHalf = Config.Lane.Width / 2 - LANE_EDGE_MARGIN
-	local to = Vector3.new(Config.Lane.StartX + distance, GROUND_Y, math.clamp(root.Position.Z, -laneHalf, laneHalf))
+	-- Land in line with the player, pulled a little toward the middle so eggs fly
+	-- down the corridor, and kept inside the zigzag walls.
+	local landX = Config.Lane.StartX + distance
+	local landZ = math.clamp(
+		root.Position.Z * LANDING_PULL,
+		-(Lane.halfWidthAt(landX, -1) - LANE_EDGE_MARGIN),
+		Lane.halfWidthAt(landX, 1) - LANE_EDGE_MARGIN
+	)
+	local to = Vector3.new(landX, GROUND_Y, landZ)
 
 	inFlight[player] = true
 	local data = DataService.get(player)

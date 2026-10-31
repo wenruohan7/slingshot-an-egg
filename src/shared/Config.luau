@@ -7,17 +7,22 @@ local Config = {}
 -- Hub layout: the hub floor runs from MinX up to MaxX and is centred on Z = 0.
 -- MaxX meets the start of the lane, so there is no gap to fall through.
 -- Players launch from anywhere on the hub floor.
+-- The front corners are cut off diagonally, narrowing into the corridor.
 Config.Hub = {
-	MinX = -200,
+	MinX = -220,
 	MaxX = 0,
-	Width = 200, -- studs, along Z (same as the lane)
+	Width = 220, -- studs, along Z
+	ChamferX = -60, -- the side walls turn in diagonally from here to the corridor
 }
 
--- Lane layout: the lane starts at X = 0 (right next to the hub) and runs toward +X.
+-- Lane layout (Tmuk's sketch): a narrow walled corridor runs from the hub's front
+-- (X = 0) to StartX, then opens into the wide zone area with jagged walls.
+-- Zone 1 starts at StartX, and launch distance is measured from there.
 Config.Lane = {
-	StartX = 0,
+	StartX = 100,
+	CorridorWidth = 80, -- studs, along Z
 	ZoneLength = 250, -- studs per zone
-	Width = 200, -- studs, along Z
+	Width = 300, -- typical width of the zone area; the jagged walls wander +-30 around it
 }
 
 -- The 8 zones, nearest first. Drop rates are percentages per rarity and add up to 100.
