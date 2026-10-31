@@ -46,8 +46,6 @@ Textures: the built-in stands use the Wood and Fabric materials, so a custom mat
 
 `models/` has ready-made models for all 12 bows, all 8 eggs and the 3 shop stands, each an `.fbx` with its texture inside (the texture is also next to it as a `.png`). See `models/*/previews.png` for what they look like.
 
-> The 12 bows and the Bow Shop stand are designed in `blender/bows.py` and `blender/stands.py` but not built yet, so `models/bows` doesn't exist yet. To build them, run `python blender/build.py bows` and then `python blender/build.py stands` (needs `pip install bpy`). Until then the game uses its built-in bow.
-
 To use them:
 
 1. In Studio, make three folders in **ReplicatedStorage**: `BowModels`, `EggModels` and `StandModels`.
