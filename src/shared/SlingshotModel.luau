@@ -7,13 +7,17 @@
 -- It's a Tool, so it sits in the player's hand. Shared so the server can
 -- build it, the client can draw the string back while charging (the draw
 -- is local to that player), and the Shop can show a picture of each one.
--- A Tool with the bow's name in ReplicatedStorage.BowModels is used instead of
--- the built-in model, so real models can be dropped in. Name its string's middle
--- part "Pouch" so the egg launches from there.
+-- Real models can be dropped into ReplicatedStorage.BowModels, named like the bow:
+--   * a mesh (a MeshPart, or the Model Studio's 3D Importer makes) replaces only
+--     the bow itself. The string and nock are still built here, so they keep
+--     drawing back. The meshes in models/bows are placed exactly from
+--     MeshSizes; any other mesh is sized to the built-in bow's height.
+--   * a Tool with a Handle replaces everything (name the string's middle part
+--     "Pouch" so the egg launches from there).
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local CustomModels = require(script.Parent.CustomModels)
 local Economy = require(script.Parent.Economy)
+local MeshSizes = require(script.Parent.MeshSizes)
 
 local SlingshotModel = {}
 
@@ -100,34 +104,57 @@ local function weldToHandle(handle: BasePart, p: BasePart)
 	weld.Parent = p
 end
 
--- A real model for this bow from ReplicatedStorage.BowModels, if one was added.
-local function customTool(name: string): Tool?
-	local folder = ReplicatedStorage:FindFirstChild(SlingshotModel.CUSTOM_FOLDER)
-	local custom = folder and folder:FindFirstChild(name)
-	if custom and custom:IsA("Tool") then
-		local tool = custom:Clone()
-		-- Free models often carry their own scripts; our code does the launching.
-		for _, item in tool:GetDescendants() do
-			if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
-				item:Destroy()
-			end
+-- A whole custom Tool for this bow.
+local function customTool(custom: Instance, name: string): Tool
+	local tool = custom:Clone() :: Tool
+	CustomModels.stripScripts(tool)
+	tool.Name = SlingshotModel.NAME
+	tool.CanBeDropped = false
+	tool.ToolTip = name
+	return tool
+end
+
+-- A custom bow mesh as the Handle, sized and placed where the built-in bow
+-- would be, so the string still ties on at the tips.
+local function customHandle(mesh: BasePart, name: string, tool: Tool): BasePart
+	local handle = mesh:Clone()
+	CustomModels.stripScripts(handle)
+	for _, item in handle:GetChildren() do
+		if item:IsA("BasePart") or item:IsA("JointInstance") or item:IsA("Constraint") then
+			item:Destroy()
 		end
-		tool.Name = SlingshotModel.NAME
-		tool.CanBeDropped = false
-		tool.ToolTip = name
-		return tool
 	end
-	return nil
+	handle.Name = "Handle"
+	handle.Anchored = false
+	handle.CanCollide = false
+	handle.CanTouch = false
+	handle.CanQuery = false
+	handle.Massless = true
+
+	local box = MeshSizes.Bows[name]
+	local size: Vector3, center: Vector3
+	if box then
+		size, center = box.Size, box.Center
+	else
+		-- not one of ours: keep its shape and make it as tall as the built-in bow
+		size = mesh.Size * ((TIP_TOP.Y - TIP_BOTTOM.Y) / math.max(mesh.Size.Y, 0.01))
+		center = Vector3.new(-LIMB_CURVE / 2, 0, 0)
+	end
+	handle.Size = scaled(size)
+	handle.CFrame = CFrame.new(scaled(center))
+	handle.Parent = tool
+	return handle
 end
 
 -- Builds the bow Tool for a level (0 = the first bow).
 -- All parts are made in the bow's own space and welded to the handle.
 function SlingshotModel.buildTool(level: number?): Tool
 	local look = Economy.slingshot(level or 0)
-	local custom = customTool(look.Name)
-	if custom then
-		return custom
+	local custom = CustomModels.find(SlingshotModel.CUSTOM_FOLDER, look.Name)
+	if custom and custom:IsA("Tool") then
+		return customTool(custom, look.Name)
 	end
+	local mesh = if custom then CustomModels.mainPart(custom) else nil
 
 	local tool = Instance.new("Tool")
 	tool.Name = SlingshotModel.NAME
@@ -135,29 +162,34 @@ function SlingshotModel.buildTool(level: number?): Tool
 	tool.ToolTip = look.Name
 
 	local frameColor, accent, material = look.Frame, look.Accent, look.Material
-	local handle = rod("Handle", Vector3.new(0, -GRIP_HALF, 0), Vector3.new(0, GRIP_HALF, 0), 1.5, frameColor, tool, material)
-
 	local parts: { BasePart } = {}
-	-- A leather wrap around the grip, with accent rings at each end.
-	table.insert(parts, rod("Wrap", Vector3.new(0, -GRIP_HALF + 0.2, 0), Vector3.new(0, GRIP_HALF - 0.2, 0), 1.75, WRAP, tool, Enum.Material.Fabric))
-	for i, y in { -GRIP_HALF, GRIP_HALF } do
-		table.insert(parts, rod("Ring" .. i, Vector3.new(0, y - 0.2, 0), Vector3.new(0, y + 0.2, 0), 1.9, accent, tool))
-	end
-	-- The two limbs, each a chain of short rods that thins toward the tip.
-	for _, side in { 1, -1 } do
-		local limbName = if side > 0 then "LimbTop" else "LimbBottom"
-		for i = 1, LIMB_SEGMENTS do
-			local a = limbPoint((i - 1) / LIMB_SEGMENTS, side)
-			local b = limbPoint(i / LIMB_SEGMENTS, side)
-			local diameter = 1.3 - 0.6 * (i - 1) / (LIMB_SEGMENTS - 1)
-			table.insert(parts, rod(limbName .. i, a, b, diameter, frameColor, tool, material))
-			if i < LIMB_SEGMENTS then
-				table.insert(parts, ball(limbName .. "Joint" .. i, b, diameter, frameColor, tool, material))
+	local handle: BasePart
+	if mesh then
+		handle = customHandle(mesh, look.Name, tool)
+	else
+		handle = rod("Handle", Vector3.new(0, -GRIP_HALF, 0), Vector3.new(0, GRIP_HALF, 0), 1.5, frameColor, tool, material)
+
+		-- A leather wrap around the grip, with accent rings at each end.
+		table.insert(parts, rod("Wrap", Vector3.new(0, -GRIP_HALF + 0.2, 0), Vector3.new(0, GRIP_HALF - 0.2, 0), 1.75, WRAP, tool, Enum.Material.Fabric))
+		for i, y in { -GRIP_HALF, GRIP_HALF } do
+			table.insert(parts, rod("Ring" .. i, Vector3.new(0, y - 0.2, 0), Vector3.new(0, y + 0.2, 0), 1.9, accent, tool))
+		end
+		-- The two limbs, each a chain of short rods that thins toward the tip.
+		for _, side in { 1, -1 } do
+			local limbName = if side > 0 then "LimbTop" else "LimbBottom"
+			for i = 1, LIMB_SEGMENTS do
+				local a = limbPoint((i - 1) / LIMB_SEGMENTS, side)
+				local b = limbPoint(i / LIMB_SEGMENTS, side)
+				local diameter = 1.3 - 0.6 * (i - 1) / (LIMB_SEGMENTS - 1)
+				table.insert(parts, rod(limbName .. i, a, b, diameter, frameColor, tool, material))
+				if i < LIMB_SEGMENTS then
+					table.insert(parts, ball(limbName .. "Joint" .. i, b, diameter, frameColor, tool, material))
+				end
 			end
 		end
+		table.insert(parts, ball("TipTop", TIP_TOP, 1.1, accent, tool))
+		table.insert(parts, ball("TipBottom", TIP_BOTTOM, 1.1, accent, tool))
 	end
-	table.insert(parts, ball("TipTop", TIP_TOP, 1.1, accent, tool))
-	table.insert(parts, ball("TipBottom", TIP_BOTTOM, 1.1, accent, tool))
 
 	-- The nock in the middle of the string (named Pouch: the egg launches from it
 	-- and the free hand reaches for it).

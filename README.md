@@ -31,16 +31,34 @@ To change zones, drop rates, pet earnings, prices, launch power, or the bow and 
 
 ## Using your own models
 
-Everything is drawn from simple parts by default. To swap in a real model, put it in a folder in ReplicatedStorage in Studio (Rojo leaves these folders alone). Names must match exactly. Scripts inside a model are removed when it's used, so free models can't run code. Anything without a model keeps the built-in look, so you can add them one at a time.
+Everything is drawn from simple parts by default. To swap in a real model, put it in a folder in ReplicatedStorage in Studio (Rojo leaves these folders alone). Names must match (spaces, underscores and capitals don't matter, so `Golden_Egg` counts as `Golden Egg`). Scripts inside a model are removed when it's used, so free models can't run code. Anything without a model keeps the built-in look, so you can add them one at a time.
 
 | Folder in ReplicatedStorage | Put in it | Named like | Notes |
 | --- | --- | --- | --- |
-| `BowModels` | a **Tool** with a part called `Handle` (and `Pouch` at the string's middle, where the egg launches from) | the tier in `Config.Slingshots`, e.g. `Iron Bow` | held in the hand and shown in the shop |
-| `EggModels` | a **MeshPart** | the tier in `Config.Eggs`, e.g. `Golden Egg` | about 4 studs wide and 5 tall |
+| `BowModels` | a **mesh** (MeshPart, or the Model the 3D Importer makes) or a **Tool** with a part called `Handle` | the tier in `Config.Slingshots`, e.g. `Iron Bow` | a mesh replaces only the bow, and the game adds the drawing string and nock; a Tool replaces everything (name its nock `Pouch`) |
+| `EggModels` | a **mesh** (MeshPart, or the importer's Model) | the tier in `Config.Eggs`, e.g. `Golden Egg` | sized to about 4 studs wide and 5 tall |
 | `PetModels` | a **Model** | the pet in `src/shared/Pets.luau`, e.g. `Puddle Frog` | front facing -Z (Studio's front); any size, it's scaled to pet height |
-| `StandModels` | a **Model** | the shop title in `src/shared/Shops.luau`: `Bow Shop`, `Egg Shop`, `Rebirth` | pivot on the floor, front facing -Z |
+| `StandModels` | a **Model** or a mesh | the shop title in `src/shared/Shops.luau`: `Bow Shop`, `Egg Shop`, `Rebirth` | front facing -Z; it's stood on the floor by its lowest point |
 
-Textures: stands use the Wood and Fabric materials, so a custom material set as an override in the Material Manager (Wood, Fabric, Grass, ...) restyles them everywhere at once.
+Textures: the built-in stands use the Wood and Fabric materials, so a custom material set as an override in the Material Manager (Wood, Fabric, Grass, ...) restyles them everywhere at once.
+
+## Models made in Blender
+
+`models/` has ready-made models for all 12 bows, all 8 eggs and the 3 shop stands, each an `.fbx` with its texture inside (the texture is also next to it as a `.png`). See `models/*/previews.png` for what they look like.
+
+> The 12 bows and the Bow Shop stand are designed in `blender/bows.py` and `blender/stands.py` but not built yet, so `models/bows` doesn't exist yet. To build them, run `python blender/build.py bows` and then `python blender/build.py stands` (needs `pip install bpy`). Until then the game uses its built-in bow.
+
+To use them:
+
+1. In Studio, make three folders in **ReplicatedStorage**: `BowModels`, `EggModels` and `StandModels`.
+2. Click **Import 3D** (Home tab, or File > Import 3D) and pick the `.fbx` files from `models/bows`. Leave the import settings as they are and click **Import**. The models appear in the Workspace, named after their files.
+3. Drag them into `BowModels`.
+4. Do the same for `models/eggs` into `EggModels` and `models/stands` into `StandModels`.
+5. Press **Play**.
+
+You don't need to resize or move anything: the game sizes and places each one from `src/shared/MeshSizes.luau`. If a model shows up white, its texture didn't come in: upload its `.png` (Asset Manager, Bulk Import) and paste the image id into the MeshPart's **TextureID**. If a stand faces the wall, move it to the Workspace, turn it around (rotate 180 degrees), and drag it back into `StandModels`.
+
+The models are made by Python scripts in `blender/`, so they can be changed and rebuilt: edit a design in `blender/bows.py`, `blender/eggs.py` or `blender/stands.py`, then run `blender --background --python blender/build.py` (made with Blender 5.2). That rebuilds the files in `models/` and `src/shared/MeshSizes.luau`; import the changed ones again.
 
 ## Using your own bow animation
 
