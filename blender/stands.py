@@ -172,7 +172,7 @@ def bow_shop():
     big_wood = Paint("BigWood")
     big_wood.set(big_wood.ramp(big_wood.noise(2.0, detail=4, vec=big_wood.scaled(3, 3, 0.35)),
                                [(0.3, (150, 100, 62)), (0.7, (205, 150, 100))]))
-    parts += mini_bow("Big", R(0, ROOF_BACK_Y + 3.3, 1.2), 0.55, big_wood.mat, tip)
+    parts += mini_bow("Big", R(0, ROOF_BACK_Y + 4.2, 1.2), 0.75, big_wood.mat, tip)
     # some eggs-for-ammo in a crate on the counter
     parts.append(box("Crate", R(4.6, DECK_Y + 4.5, COUNTER_Z), (2.6, 1.0, 1.8), wood, bevel=0.1))
     for i, c in enumerate(((255, 250, 235), (170, 240, 200), (140, 200, 255))):
