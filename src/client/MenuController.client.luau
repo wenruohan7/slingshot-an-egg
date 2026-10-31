@@ -680,7 +680,7 @@ local rebirthInfo = label({ Position = UDim2.fromOffset(20, 20), Size = UDim2.ne
 label({
 	Position = UDim2.fromOffset(20, 80),
 	Size = UDim2.new(1, -40, 0, 60),
-	Text = "Resets your coins, slingshot and egg. You keep all your pets.",
+	Text = "Resets your coins, bow and egg. You keep all your pets.",
 	TextColor3 = DIM_TEXT,
 	Parent = pages.Rebirth,
 })

@@ -26,10 +26,19 @@ local LaunchService = {}
 
 local GROUND_Y = 2 -- egg rests on the lane surface (y = 0) with its centre 2 studs up
 local BOUNCE_SECONDS = 0.5 -- two little hops after touching down
-local LANE_EDGE_MARGIN = 10 -- keep landings this far inside the lane's sides
+local LANE_EDGE_MARGIN = 14 -- keep landings this far inside the walls (props line the edges)
+local LANDING_PULL = 0.5 -- landing Z = player Z times this
+local FLIGHT_TIMEOUT = 30 -- seconds; a launch is always cleared by then, whatever happens
 
 local chargeStarted: { [Player]: number } = {}
 local inFlight: { [Player]: boolean } = {}
+
+-- The client reads the EggInFlight attribute too, so it won't start a charge
+-- while your egg is still in the air.
+local function setInFlight(player: Player, flying: boolean)
+	inFlight[player] = if flying then true else nil
+	player:SetAttribute("EggInFlight", if flying then true else nil)
+end
 
 -- The player's root part, if they are alive, holding the slingshot, standing in
 -- the hub and their data has loaded.
@@ -165,44 +174,80 @@ local function onChargeRelease(player: Player)
 	local tool = character:FindFirstChild(SlingshotModel.NAME)
 	local pouch = tool and tool:FindFirstChild("Pouch")
 	local from = if pouch and pouch:IsA("BasePart") then pouch.Position else root.Position + Vector3.new(0, 3, 0)
-	local laneHalf = Config.Lane.Width / 2 - LANE_EDGE_MARGIN
-	local to = Vector3.new(Config.Lane.StartX + distance, GROUND_Y, math.clamp(root.Position.Z, -laneHalf, laneHalf))
+	-- Land in line with the player, pulled toward the middle so eggs fly down the
+	-- lane, and kept inside its walls.
+	local landX = Config.Lane.StartX + distance
+	local landZ = math.clamp(
+		root.Position.Z * LANDING_PULL,
+		-(Lane.halfWidthAt(landX, -1) - LANE_EDGE_MARGIN),
+		Lane.halfWidthAt(landX, 1) - LANE_EDGE_MARGIN
+	)
+	local to = Vector3.new(landX, GROUND_Y, landZ)
 
-	inFlight[player] = true
+	setInFlight(player, true)
 	local data = DataService.get(player)
 	local egg = makeEgg(from, stage.Color, if data then data.EggLevel else 0)
 	Remotes.EggLaunched:FireClient(player, egg, stage.Name)
 
-	flyEgg(egg, from, to, function()
-		if player.Parent ~= Players then
-			(egg.Parent or egg):Destroy()
-			inFlight[player] = nil
+	-- Clears the egg away and lets the player launch again. Always runs, even if
+	-- something in the hatch below errors, so a player can never get stuck.
+	local cleared = false
+	local function clear(pet: Pets.Pet?)
+		if cleared then
 			return
 		end
-		Remotes.EggLanded:FireClient(player, zoneIndex, stage.Name, distance)
-
-		-- The server decides the pet now; the client plays the crack and reveal
-		-- while the egg sits on the lane.
-		local pet, merged, kept, isNew = HatchService.hatch(player, distance)
-		local notable = pet ~= nil and Pets.isNotable(pet)
-		if pet then
-			Remotes.EggHatched:FireClient(player, egg, pet, merged, kept, isNew)
-			if notable then
-				Remotes.BigHatch:FireAllClients(player.DisplayName, to, pet)
-			end
-			if not kept then
-				EconomyService.notify(player, "Your pets are full! Only pets better than your weakest are kept.", "error")
-			end
-			EconomyService.publish(player)
+		cleared = true
+		local holder = egg.Parent or egg
+		holder:Destroy()
+		setInFlight(player, false)
+		if pet and player.Parent then
+			PlotService.refresh(player)
 		end
+	end
+	-- Backstop in case the flight itself never finishes.
+	task.delay(FLIGHT_TIMEOUT, function()
+		if not cleared then
+			warn(`[LaunchService] egg for {player.Name} never finished; clearing it`)
+			clear(nil)
+		end
+	end)
 
+	flyEgg(egg, from, to, function()
+		if player.Parent ~= Players then
+			clear(nil)
+			return
+		end
+		local ok, petOrError, notable = pcall(function(): (Pets.Pet?, boolean)
+			Remotes.EggLanded:FireClient(player, zoneIndex, stage.Name, distance)
+
+			-- The server decides the pet now; the client plays the crack and reveal
+			-- while the egg sits on the lane.
+			local pet, merged, kept, isNew = HatchService.hatch(player, distance)
+			local notable = pet ~= nil and Pets.isNotable(pet)
+			if pet then
+				Remotes.EggHatched:FireClient(player, egg, pet, merged, kept, isNew)
+				if notable then
+					Remotes.BigHatch:FireAllClients(player.DisplayName, to, pet)
+				end
+				if not kept then
+					EconomyService.notify(player, "Your pets are full! Only pets better than your weakest are kept.", "error")
+				end
+				EconomyService.publish(player)
+			end
+			return pet, notable
+		end)
+		if not ok then
+			warn(`[LaunchService] hatch failed for {player.Name}: {petOrError}`)
+			clear(nil)
+			return
+		end
+		local pet = petOrError :: Pets.Pet?
 		local revealTime = if notable then Config.Hatching.BigRevealSeconds else Config.Hatching.RevealSeconds
 		task.delay(revealTime, function()
-			local holder = egg.Parent or egg
-			holder:Destroy()
-			inFlight[player] = nil
-			if pet and player.Parent then
-				PlotService.refresh(player)
+			local refreshOk, err = pcall(clear, pet)
+			if not refreshOk then
+				warn(`[LaunchService] clearing egg failed for {player.Name}: {err}`)
+				setInFlight(player, false)
 			end
 		end)
 	end)

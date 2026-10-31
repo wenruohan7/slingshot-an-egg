@@ -1,12 +1,15 @@
 --!strict
 -- Builds the egg a player launches, in the look of the egg they own
 -- (Config.Eggs). Shared so the Shop can show a picture of each egg.
--- A MeshPart with the egg's name in ReplicatedStorage.EggModels is used
--- instead of the built-in shape, so real models can be dropped in.
+-- A mesh with the egg's name in ReplicatedStorage.EggModels (a MeshPart, or
+-- the Model Studio's 3D Importer makes) is used instead of the built-in
+-- shape, so real models can be dropped in.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local CustomModels = require(script.Parent.CustomModels)
 local Economy = require(script.Parent.Economy)
+local MeshSizes = require(script.Parent.MeshSizes)
+
+local EGG_HEIGHT = 5 -- studs, for a mesh that isn't one of ours in MeshSizes
 
 local EggModel = {}
 
@@ -15,18 +18,17 @@ EggModel.CUSTOM_FOLDER = "EggModels"
 -- The egg for an egg level (0 = the first egg), anchored and not yet parented.
 function EggModel.build(level: number?): BasePart
 	local look = Economy.egg(level or 0)
-	local folder = ReplicatedStorage:FindFirstChild(EggModel.CUSTOM_FOLDER)
-	local custom = folder and folder:FindFirstChild(look.Name)
-	if custom and custom:IsA("BasePart") then
-		local egg = custom:Clone()
-		for _, item in egg:GetDescendants() do
-			if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
-				item:Destroy()
-			end
-		end
+	local custom = CustomModels.find(EggModel.CUSTOM_FOLDER, look.Name)
+	local mesh = if custom then CustomModels.mainPart(custom) else nil
+	if mesh then
+		local egg = mesh:Clone()
+		CustomModels.stripScripts(egg)
 		egg.Name = "Egg"
 		egg.Anchored = true
 		egg.CanCollide = false
+		-- Studio's importer may pick any scale, so size it here.
+		local box = MeshSizes.Eggs[look.Name]
+		egg.Size = if box then box.Size else mesh.Size * (EGG_HEIGHT / math.max(mesh.Size.Y, 0.01))
 		return egg
 	end
 

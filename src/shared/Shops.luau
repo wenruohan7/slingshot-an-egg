@@ -14,22 +14,23 @@ export type Shop = {
 	Facing: Vector3, -- the way the counter faces; the circle is on that side
 }
 
--- The Slingshot and Egg shops sit at the two front corners of the hub (next to
--- the lane), turned to face diagonally in toward the middle.
+-- The Slingshot and Egg shops stand against the two diagonal walls at the hub's
+-- front corners (where it narrows into the corridor), facing in toward the middle.
+-- Rebirth stands in front of the last plot, facing the lane.
 local LIST: { Shop } = {
 	{
 		Kind = "Slingshot",
-		Title = "Slingshot Shop",
+		Title = "Bow Shop",
 		Color = Color3.fromRGB(255, 120, 160),
-		Position = Vector3.new(-35, 0, -72),
-		Facing = Vector3.new(-1, 0, 1).Unit,
+		Position = Vector3.new(-33.8, 0, -73.7),
+		Facing = Vector3.new(-0.759, 0, 0.651).Unit,
 	},
 	{
 		Kind = "Egg",
 		Title = "Egg Shop",
 		Color = Color3.fromRGB(255, 205, 80),
-		Position = Vector3.new(-35, 0, 72),
-		Facing = Vector3.new(-1, 0, -1).Unit,
+		Position = Vector3.new(-33.8, 0, 73.7),
+		Facing = Vector3.new(-0.759, 0, -0.651).Unit,
 	},
 	{
 		Kind = "Rebirth",
