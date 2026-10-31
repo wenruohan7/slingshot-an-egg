@@ -5,6 +5,9 @@
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
+      },
+      "BowAnimations": {
+        "$path": "animations"
       }
     },
     "ServerScriptService": {

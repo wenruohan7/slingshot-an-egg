@@ -155,6 +155,9 @@ Config.Charge = {
 		{ Name = "Not bad", Min = 0.26, Power = 0.65, Color = Color3.fromRGB(110, 210, 110) },
 		{ Name = "Poor", Min = 0, Power = 0.5, Color = Color3.fromRGB(190, 190, 190) },
 	},
+	-- On a Perfect the whole shot freezes for this long on the release, with
+	-- impact frames (flashes and burst lines), before the egg flies off.
+	PerfectFreeze = 0.14,
 }
 
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
@@ -169,11 +172,13 @@ Config.Models = {
 Config.Slingshot = {
 	BasePower = 320, -- first slingshot: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 
-	-- Your own animations from Studio's Animation Editor, as "rbxassetid://123". Left empty, the
-	-- arms are posed from code instead. Charge plays while the button is held (make it Looping),
-	-- Launch plays once on release. Publish them from the account (or group) that owns the game.
-	ChargeAnimationId = "",
-	LaunchAnimationId = "",
+	-- The bow animations, as "rbxassetid://123" (README: "Bow animations"). Upload
+	-- ReplicatedStorage.BowAnimations.BowDraw and BowRelease from the account (or group)
+	-- that owns the game and paste the ids here. Left empty, Studio plays them straight
+	-- from ReplicatedStorage (only you see them, and only in Studio), and a live game
+	-- poses the arms from code instead.
+	DrawAnimationId = "",
+	ReleaseAnimationId = "",
 }
 
 -- The Robux shop (the Shop button). Create each item on the Creator Dashboard

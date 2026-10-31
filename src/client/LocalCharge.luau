@@ -7,7 +7,8 @@ local LocalCharge = {
 	charging = false,
 	startedAt = 0,
 	releasedAt = -math.huge,
-	releasePull = 0,
+	releasePull = 0, -- how far the string was drawn
+	releaseStage = "", -- the meter stage you let go on, e.g. "Perfect"
 }
 
 return LocalCharge
