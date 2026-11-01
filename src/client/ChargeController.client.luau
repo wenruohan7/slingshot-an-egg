@@ -21,6 +21,7 @@ local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
 local Lane = require(Shared.Lane)
 local Remotes = require(Shared.Remotes)
+local ShotAnimations = require(Shared.ShotAnimations)
 local SlingshotModel = require(Shared.SlingshotModel)
 
 local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
@@ -51,7 +52,6 @@ local chargeInput: InputObject? = nil -- the touch, click or key that started th
 local chargedByTool = false -- started by Tool.Activated instead
 local lockedHumanoid: Humanoid? = nil -- turned to face the lane while charging
 local anchoredRoot: BasePart? = nil -- held in place from the draw until the release is over
-local RELEASE_HOLD = 0.5 -- seconds the player stays put after letting go
 
 -- Drives the band snap-back after release; tweening it springs the pouch forward.
 local pull = Instance.new("NumberValue")
@@ -104,10 +104,12 @@ corner(button, UDim.new(1, 0))
 local buttonScale = Instance.new("UIScale")
 buttonScale.Parent = button
 
--- The meter (like Tmuk's reference): a tall rounded tube of chunky cells, red
--- at the bottom through orange and yellow to green at the top, with a white
--- needle sliding up and down it. The top cells are the Perfect band.
-local METER_CELLS = 12
+-- The meter, like Tmuk's reference video: a tall thin rounded tube in the
+-- middle of the screen (just right of the player, who stands left of centre in
+-- the over-the-shoulder view), made of chunky cells: red at the bottom through
+-- orange and yellow to green at the top, with a white needle and "+N" beside
+-- it, "TAP TO SHOOT!" across its foot, and a "100x LUCK" badge top right.
+local METER_CELLS = 10
 local CELL_GAP = 3
 local CELL_COLORS = {
 	Color3.fromRGB(235, 55, 50), -- bottom
@@ -118,13 +120,18 @@ local CELL_COLORS = {
 
 local meter = Instance.new("Frame")
 meter.Name = "Meter"
-meter.AnchorPoint = Vector2.new(1, 0.5)
-meter.Position = UDim2.new(1, -230, 0.42, 0)
-meter.Size = UDim2.fromOffset(50, 330)
+meter.AnchorPoint = Vector2.new(0.5, 0)
+meter.Position = UDim2.fromScale(0.5, 0.12)
+meter.Size = UDim2.fromScale(0, 0.6) -- the height follows the screen; the width follows the height
+meter.SizeConstraint = Enum.SizeConstraint.RelativeYY
 meter.BackgroundColor3 = Color3.fromRGB(25, 22, 35)
 meter.Visible = false
 meter.Parent = gui
 corner(meter, UDim.new(1, 0))
+local meterShape = Instance.new("UIAspectRatioConstraint")
+meterShape.AspectRatio = 0.16
+meterShape.Parent = meter
+meter.Size = UDim2.fromScale(0.096, 0.6)
 local frameStroke = Instance.new("UIStroke")
 frameStroke.Color = Color3.fromRGB(20, 18, 28)
 frameStroke.Thickness = 4
@@ -138,12 +145,10 @@ bar.Size = UDim2.new(1, -12, 1, -14)
 bar.BackgroundTransparency = 1
 bar.Parent = meter
 
--- On phones, keep the button and meter clear of the jump button, which sits
--- within about 230 px of the bottom-right corner in every layout.
+-- On phones, keep the button clear of the jump button, which sits within
+-- about 230 px of the bottom-right corner in every layout.
 if UserInputService.TouchEnabled then
 	button.Position = UDim2.new(1, -240, 1, -30)
-	meter.AnchorPoint = Vector2.new(1, 1)
-	meter.Position = UDim2.new(1, -410, 1, -30)
 end
 
 local stages = Config.Charge.Stages
@@ -201,10 +206,10 @@ corner(needle, UDim.new(1, 0))
 -- egg would fly), so it climbs as you buy better bows.
 local needleTag = label({
 	Name = "PowerTag",
-	AnchorPoint = if UserInputService.TouchEnabled then Vector2.new(1, 0.5) else Vector2.new(0, 0.5),
-	Position = UDim2.new(0, -10, 0.5, 0),
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(1, 12, 0.5, 0),
 	Size = UDim2.fromOffset(110, 34),
-	TextXAlignment = if UserInputService.TouchEnabled then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
+	TextXAlignment = Enum.TextXAlignment.Left,
 	TextStrokeTransparency = 1,
 	ZIndex = 3,
 	Parent = meter,
@@ -215,10 +220,11 @@ needleTagStroke.Thickness = 3
 needleTagStroke.Parent = needleTag
 
 local meterHint = label({
-	Name = "LetGoHint",
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 1, 10),
-	Size = UDim2.fromOffset(220, 32),
+	Name = "TapHint",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 1, 4),
+	Size = UDim2.fromOffset(250, 36),
+	ZIndex = 4,
 	Text = "LET GO TO SHOOT!",
 	TextStrokeTransparency = 1,
 	Parent = meter,
@@ -297,20 +303,17 @@ leaveHintStroke.Parent = leaveHint
 -- "+342 POWER" floats up from the meter when you let go.
 local function powerPop(amount: number, color: Color3)
 	local pop = label({
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -230, 0.5, -40),
-		Size = UDim2.fromOffset(260, 44),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		TextColor3 = color,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(1, 8, 0.45, 0),
+		Size = UDim2.fromOffset(240, 36),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.fromRGB(120, 235, 80),
 		TextStrokeTransparency = 1,
 		Text = `+{Format.number(amount)} POWER`,
 		ZIndex = 4,
-		Parent = gui,
+		Parent = meter,
 	})
-	if UserInputService.TouchEnabled then
-		pop.AnchorPoint = Vector2.new(1, 1)
-		pop.Position = UDim2.new(1, -420, 1, -300)
-	end
+	local _ = color
 	local popStroke = Instance.new("UIStroke")
 	popStroke.Color = Color3.fromRGB(20, 20, 30)
 	popStroke.Thickness = 3
@@ -319,8 +322,8 @@ local function powerPop(amount: number, color: Color3)
 	popScale.Scale = 0.5
 	popScale.Parent = pop
 	TweenService:Create(popScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
-	local rise = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(pop, rise, { Position = pop.Position - UDim2.fromOffset(0, 60), TextTransparency = 1 }):Play()
+	local rise = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	TweenService:Create(pop, rise, { Position = pop.Position - UDim2.fromOffset(0, 24), TextTransparency = 1 }):Play()
 	TweenService:Create(popStroke, rise, { Transparency = 1 }):Play()
 	task.delay(1.2, function()
 		pop:Destroy()
@@ -650,7 +653,10 @@ end
 local RELEASE_LOCK = 1
 local lastRelease = -math.huge
 local function eggInAir(): boolean
-	return flying or player:GetAttribute("EggInFlight") == true or os.clock() - lastRelease < RELEASE_LOCK
+	return flying
+		or LocalCharge.shooting
+		or player:GetAttribute("EggInFlight") == true
+		or os.clock() - lastRelease < RELEASE_LOCK
 end
 
 -- Auto charge: stepping onto the shooting spot starts the draw by itself, and
@@ -669,7 +675,7 @@ local function startCharge(input: InputObject?, auto: boolean?)
 	autoCharge = auto == true
 	meterHint.Text = if autoCharge then "TAP TO SHOOT!" else "LET GO TO SHOOT!"
 	meterHint.TextColor3 = Color3.new(1, 1, 1)
-	luckBadgeText.Text = `x{Format.number(eggLuck())} LUCK`
+	luckBadgeText.Text = `{Format.number(eggLuck())}x LUCK`
 	luckBadge.Visible = true
 	leaveHint.Visible = autoCharge
 	button.Text = if autoCharge then "🥚\nTAP!" else "🥚\nHOLD"
@@ -688,6 +694,22 @@ local function startCharge(input: InputObject?, auto: boolean?)
 	TweenService:Create(buttonScale, TweenInfo.new(0.15), { Scale = 0.88 }):Play()
 end
 
+-- Which shot animation plays: by each one's Chance (BowShot1 70%, BowShot2 30%).
+local function pickShot(): ShotAnimations.Shot
+	local total = 0
+	for _, shot in ShotAnimations do
+		total += shot.Chance
+	end
+	local roll = math.random() * total
+	for _, shot in ShotAnimations do
+		roll -= shot.Chance
+		if roll < 0 then
+			return shot
+		end
+	end
+	return ShotAnimations[1]
+end
+
 local function releaseCharge()
 	if not charging then
 		return
@@ -697,25 +719,40 @@ local function releaseCharge()
 	lastRelease = os.clock()
 	chargeInput = nil
 	chargedByTool = false
-	local releaseValue = Charge.valueAt(os.clock() - chargeStart)
+	local now = os.clock()
+	local releaseValue = Charge.valueAt(now - chargeStart)
 	local stage = Charge.stageFor(releaseValue).Name
 	powerPop(powerAt(releaseValue), Charge.stageFor(releaseValue).Color)
-	-- The stage word under the meter, like "PERFECT!", while it fades out.
+	-- The stage word across the meter's foot, like "PERFECT!".
 	meterHint.Text = string.upper(stage) .. "!"
 	meterHint.TextColor3 = Charge.stageFor(releaseValue).Color
 	leaveHint.Visible = false
+
+	-- The tap starts the shot animation (PoseController); the string lets go and
+	-- the egg leaves at its ReleaseAt (the server fires it at the same time).
+	local shot = pickShot()
+	local perfect = stage == stages[1].Name
 	LocalCharge.charging = false
 	LocalCharge.releaseStage = stage
-	LocalCharge.releasePull = pull.Value
-	LocalCharge.releasedAt = os.clock()
-	local hold = RELEASE_HOLD + if stage == stages[1].Name then Config.Charge.PerfectFreeze else 0
-	task.delay(hold, unlockPlayer)
-	Remotes.ChargeRelease:FireServer()
-	local tween = TweenService:Create(pull, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Value = 0 })
-	snapTween = tween
-	tween:Play()
+	LocalCharge.releasePull = 1
+	LocalCharge.shooting = true
+	LocalCharge.shotName = shot.Name
+	LocalCharge.shotStartedAt = now
+	Remotes.ChargeRelease:FireServer(shot.Name)
+	task.delay(shot.ReleaseAt, function()
+		if LocalCharge.shotStartedAt == now then
+			LocalCharge.releasedAt = os.clock()
+		end
+	end)
+	local length = shot.Length + if perfect then Config.Charge.PerfectFreeze else 0
+	task.delay(length, function()
+		if LocalCharge.shotStartedAt == now then
+			LocalCharge.shooting = false
+		end
+		unlockPlayer()
+	end)
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	task.delay(0.7, function()
+	task.delay(1, function()
 		if not charging then
 			meter.Visible = false
 			luckBadge.Visible = false
@@ -818,7 +855,8 @@ end
 RunService.RenderStepped:Connect(function()
 	hookTool(heldSlingshot())
 	local ready = canLaunch()
-	button.Visible = (charging or not eggInAir()) and ready
+	-- No button during a spot-started draw (tap anywhere), like the reference.
+	button.Visible = ((charging and not autoCharge) or (not charging and not eggInAir())) and ready
 	if charging and not ready then
 		-- Bow gone or off the spot mid-draw: a spot-started draw just stops,
 		-- a held one lets go.
@@ -851,11 +889,8 @@ RunService.RenderStepped:Connect(function()
 	if charging then
 		local value = Charge.valueAt(os.clock() - chargeStart)
 		needle.Position = UDim2.fromScale(0.5, 1 - value)
-		needleTag.Position = if UserInputService.TouchEnabled
-			then UDim2.new(0, -10, 1 - value, 0)
-			else UDim2.new(1, 12, 1 - value, 0)
+		needleTag.Position = UDim2.new(1, 12, 1 - value, 0)
 		needleTag.Text = `+{Format.number(powerAt(value))}`
-		pull.Value = SlingshotModel.drawFor(value)
 	end
 	-- Clear the screen while aiming and while the egg flies: the menu buttons
 	-- and the hint line hide, the coin counter stays.

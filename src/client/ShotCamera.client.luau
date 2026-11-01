@@ -1,9 +1,9 @@
 --!strict
 -- The camera for a shot, and the impact frames on a Perfect.
 --
--- While you draw, the camera slides in over your left shoulder, looking down the
--- lane past the bow, and creeps closer (with a narrower view) as the meter
--- fills, trembling a little near the top. On release it kicks; on a Perfect the
+-- While the meter bounces, the camera sits over your right shoulder, looking
+-- down the lane past the bow. When you tap it swings round to your side to
+-- show the shot animation; on the release it kicks; on a Perfect the
 -- shot freezes for a moment (Config.Charge.PerfectFreeze) and flashes three
 -- impact frames: a white flash, a stark black-and-white frame with burst lines,
 -- then a gold one, before the view punches out and shakes.
@@ -20,7 +20,6 @@ local TweenService = game:GetService("TweenService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
 local Config = require(Shared.Config)
-local Charge = require(Shared.Charge)
 local Remotes = require(Shared.Remotes)
 local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
 
@@ -29,14 +28,24 @@ local camera = workspace.CurrentCamera
 
 -- Where the shot camera sits, in the player's own space (+X right, +Y up, +Z
 -- back; the player faces down the lane while drawing), and what it looks at.
-local AIM_OFFSET = Vector3.new(-1.8, 2.3, 8.5) -- over the left shoulder
-local AIM_LOOK = Vector3.new(0.6, 1.2, -40) -- down the lane, past the bow
+local AIM_OFFSET = Vector3.new(2.2, 2.3, 8.5) -- over the right shoulder, so you stand left of the meter
+local AIM_LOOK = Vector3.new(-0.8, 1.2, -40) -- down the lane, past the bow
 local PUSH_IN = 1.6 -- studs closer at full draw
 local NORMAL_FOV = 70
 local FULL_DRAW_FOV = 58
 local BLEND_IN = 0.22 -- seconds to get into the shot camera
 local BLEND_OUT = 0.45 -- and back out after the release
-local HOLD_AFTER_RELEASE = 0.5 -- stays on the shot through the follow-through spin
+local HOLD_AFTER_RELEASE = 0.35 -- stays on the shot a moment after the string lets go
+
+-- The showcase: after you tap, the camera swings round from behind you to your
+-- left side, a little in front, so you see the whole draw and release, drifting
+-- slowly while you hold. It swings back behind the egg (the chase camera) once
+-- the egg is away.
+local SHOW_DELAY = 0.45 -- seconds after the tap, so you see "PERFECT!" first
+local SHOW_SWING = 0.75 -- seconds to swing round
+local SHOW_YAW = math.rad(-115) -- how far round (to your left and a bit in front)
+local SHOW_DRIFT = math.rad(-12) -- extra slow drift during the hold
+local SHOW_FOCUS = Vector3.new(0, 1.4, -0.6) -- what it looks at, in your own space
 
 local PERFECT = Config.Charge.Stages[1].Name
 local AMAZING = Config.Charge.Stages[2].Name
@@ -212,6 +221,21 @@ end
 -- Every frame, right after the normal camera has moved
 --------------------------------------------------------------------------------
 
+-- The showcase camera `since` seconds after the tap.
+local function showcaseFrame(root: BasePart, since: number): CFrame
+	local base = root.CFrame
+	local swing = math.clamp((since - SHOW_DELAY) / SHOW_SWING, 0, 1)
+	swing = swing * swing * (3 - 2 * swing)
+	local drift = math.clamp((since - SHOW_DELAY - SHOW_SWING) / 2.5, 0, 1) * SHOW_DRIFT
+	local yaw = SHOW_YAW * swing + drift
+	local offset = CFrame.Angles(0, yaw, 0) * (AIM_OFFSET + Vector3.new(0, 0.4 * swing, -0.8 * swing))
+	local position = base:PointToWorldSpace(offset)
+	local lookAim = base:PointToWorldSpace(AIM_LOOK)
+	local lookBody = base:PointToWorldSpace(SHOW_FOCUS)
+	local frame = CFrame.lookAt(position, lookAim:Lerp(lookBody, swing))
+	return frame + frame.LookVector * (kick * 1.2)
+end
+
 local function shotFrame(root: BasePart, meter: number): CFrame
 	local base = root.CFrame
 	local offset = AIM_OFFSET - Vector3.new(0, 0, PUSH_IN * meter)
@@ -243,16 +267,21 @@ RunService:BindToRenderStep("ShotCamera", Enum.RenderPriority.Camera.Value + 1, 
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local aiming = LocalCharge.charging or now < releaseHoldUntil or frozenAt ~= nil
+	-- Showing the shot: from the tap until a moment after the string lets go.
+	local released = LocalCharge.releasedAt >= LocalCharge.shotStartedAt
+	local showing = LocalCharge.shooting and (not released or now < LocalCharge.releasedAt + HOLD_AFTER_RELEASE)
+	local aiming = LocalCharge.charging or showing or now < releaseHoldUntil or frozenAt ~= nil
 	local target = if aiming and root then 1 else 0
 	local rate = if target > weight then dt / BLEND_IN else dt / BLEND_OUT
 	weight = if target > weight then math.min(weight + rate, 1) else math.max(weight - rate, 0)
 
 	local meter = 0
 	if LocalCharge.charging then
-		meter = Charge.valueAt(now - LocalCharge.startedAt)
-	elseif now < releaseHoldUntil then
-		meter = 1
+		-- The string isn't drawn while the meter bounces (the draw is part of the
+		-- shot animation), so the camera just sits a little closer.
+		meter = 0.3
+	elseif now < releaseHoldUntil or showing then
+		meter = 0.4
 	end
 
 	-- Decay the release effects.
@@ -288,7 +317,9 @@ RunService:BindToRenderStep("ShotCamera", Enum.RenderPriority.Camera.Value + 1, 
 		camera.CFrame = frozenAt
 	elseif weight > 0 and root and root:IsA("BasePart") then
 		local eased = weight * weight * (3 - 2 * weight)
-		local shot = shotFrame(root, meter)
+		local shot = if LocalCharge.shooting
+			then showcaseFrame(root, now - LocalCharge.shotStartedAt)
+			else shotFrame(root, meter)
 		camera.CFrame = camera.CFrame:Lerp(shot, eased) * shakeOffset(now)
 		if tremble > 0 then
 			local t = tremble * 0.02

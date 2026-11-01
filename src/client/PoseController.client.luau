@@ -1,86 +1,114 @@
 --!strict
--- Poses every player's character while they use the slingshot: the free arm
--- reaches for the pouch and follows it back as the meter fills, the body leans
--- back, then on release the arm springs forward with the band and the body
--- lunges after it. Works on R15 and R6 characters.
+-- Poses every player's character for a bow shot. While the meter bounces you
+-- just stand holding the bow; when you tap, one of the shot animations plays
+-- (ShotAnimations: BowShot1 70% of the time, BowShot2 30%): lift the bow, draw
+-- slowly, hold, release at ReleaseAt (when the egg leaves), follow through.
+-- The string follows the shot's Pull curve, then snaps forward.
 --
--- It's done from code on top of the normal animations, so nothing has to be
--- uploaded. Each client poses everyone: your own character from LocalCharge
--- (no lag), other players from the attributes the server puts on their
--- character.
---
--- With the bow animations (ReplicatedStorage.BowAnimations, ids in
--- Config.Slingshot) your own character plays those instead: BowDraw is scrubbed
--- with the meter so the drawing hand stays on the string, and BowRelease plays
--- when you let go, freezing on its Impact frame for a Perfect. Animations
--- played on your own character show for everyone.
+-- With the animations available (uploaded ids in Config.Slingshot, or in Studio
+-- straight from ReplicatedStorage.BowAnimations) your own character plays them,
+-- and once uploaded everyone sees them. Without them, the arms are posed from
+-- code instead, so nothing has to be uploaded to play. Each client poses
+-- everyone: your own character from LocalCharge (no lag), other players from
+-- the ShotName / ShotStartedAt attributes the server puts on their character.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
 local Config = require(Shared.Config)
-local Charge = require(Shared.Charge)
+local ShotAnimations = require(Shared.ShotAnimations)
 local SlingshotModel = require(Shared.SlingshotModel)
 local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
 
 local player = Players.LocalPlayer
 
-local BLEND_IN = 0.15 -- seconds to ease into the pose
-local LEAN_BACK = math.rad(10) -- at full pull
+local BLEND_IN = 0.3 -- seconds to ease into the pose
+local LEAN_BACK = math.rad(10) -- at full draw
 local LEAN_FORWARD = math.rad(14) -- the lunge on release
 local LUNGE_TIME = 0.45
-local RELEASE_TIME = 0.8 -- the pose has faded out by then
--- The follow-through spin after the shot (like the throw in Tmuk's reference):
--- the whole body whips round once, fast at first and settling at the end.
-local SPIN_DELAY = 0.1 -- seconds after letting go (past a Perfect's freeze)
-local SPIN_TIME = 0.55
+local SETTLE_TIME = 0.8 -- after the release the pose has faded out by then (code poses)
+
+local shotsByName: { [string]: ShotAnimations.Shot } = {}
+for _, shot in ShotAnimations do
+	shotsByName[shot.Name] = shot
+end
 
 type Pose = {
 	weight: number, -- 0 = normal animations, 1 = fully posed
-	band: number, -- how far back the band is (below 0 overshoots forward)
+	band: number, -- how far back the string is (below 0 overshoots forward)
 	lean: number, -- radians, + is back
-	spin: number, -- radians the whole body has turned (release only)
+	spin: number, -- radians the whole body has turned (follow-through)
 }
 
--- The pose for this point in a charge (held = seconds held).
-local function chargingPose(held: number): Pose
-	local pull = Charge.valueAt(held)
-	return { weight = math.min(held / BLEND_IN, 1), band = SlingshotModel.drawFor(pull), lean = LEAN_BACK * pull, spin = 0 }
+-- The string's draw `t` seconds into a shot, before the release.
+local function pullAt(shot: ShotAnimations.Shot, t: number): number
+	local keys = shot.Pull
+	if t <= keys[1][1] then
+		return keys[1][2]
+	end
+	for i = 2, #keys do
+		local a, b = keys[i - 1], keys[i]
+		if t <= b[1] then
+			local f = (t - a[1]) / math.max(b[1] - a[1], 1e-3)
+			f = f * f * (3 - 2 * f)
+			return a[2] + (b[2] - a[2]) * f
+		end
+	end
+	return keys[#keys][2]
 end
 
--- The pose `since` seconds after letting go at `pull`, or nil once it's over.
-local function releasePose(since: number, pull: number): Pose?
-	if since < 0 or since >= RELEASE_TIME then
+-- The pose `since` seconds into a shot, or nil once it's over.
+local function shotPose(shot: ShotAnimations.Shot, since: number): Pose?
+	if since < 0 or since >= shot.Length then
 		return nil
 	end
-	local lunge = math.sin(math.pi * math.min(since / LUNGE_TIME, 1))
-	local spinT = math.clamp((since - SPIN_DELAY) / SPIN_TIME, 0, 1)
-	local spin = if Config.Charge.ReleaseSpin then math.pi * 2 * (1 - (1 - spinT) ^ 3) else 0
+	local spin = 0
+	if shot.Spin then
+		local spinT = math.clamp((since - shot.Spin[1]) / shot.Spin[2], 0, 1)
+		spin = math.pi * 2 * (1 - (1 - spinT) ^ 3)
+	end
+	if since < shot.ReleaseAt then
+		local draw = pullAt(shot, since)
+		return {
+			weight = math.min(since / BLEND_IN, 1),
+			band = draw,
+			lean = LEAN_BACK * math.max(draw - 0.6, 0) / 0.4,
+			spin = spin,
+		}
+	end
+	local after = since - shot.ReleaseAt
+	local lunge = math.sin(math.pi * math.min(after / LUNGE_TIME, 1))
+	local fade = shot.Length - shot.ReleaseAt
+	local settle = math.min(SETTLE_TIME, fade)
 	return {
+		weight = if after < LUNGE_TIME then 1 else math.max(1 - (after - LUNGE_TIME) / math.max(settle - LUNGE_TIME, 0.1), 0),
+		band = math.exp(-7 * after) * math.cos(20 * after),
+		lean = LEAN_BACK * math.exp(-12 * after) - LEAN_FORWARD * lunge,
 		spin = spin,
-		weight = if since < LUNGE_TIME then 1 else 1 - (since - LUNGE_TIME) / (RELEASE_TIME - LUNGE_TIME),
-		band = pull * math.exp(-7 * since) * math.cos(20 * since),
-		lean = LEAN_BACK * pull * math.exp(-12 * since) - LEAN_FORWARD * lunge,
 	}
 end
 
-local function poseFor(character: Model, isLocal: boolean): Pose?
+-- The shot this character is doing and how far into it, or nil.
+local function currentShot(character: Model, isLocal: boolean): (ShotAnimations.Shot?, number)
 	if isLocal then
-		if LocalCharge.charging then
-			return chargingPose(os.clock() - LocalCharge.startedAt)
+		if LocalCharge.shooting then
+			return shotsByName[LocalCharge.shotName], os.clock() - LocalCharge.shotStartedAt
 		end
-		return releasePose(os.clock() - LocalCharge.releasedAt, LocalCharge.releasePull)
+		return nil, 0
 	end
-	local now = workspace:GetServerTimeNow()
-	local startedAt = character:GetAttribute("ChargeStartedAt")
-	if typeof(startedAt) == "number" then
-		return chargingPose(now - startedAt)
+	local name = character:GetAttribute("ShotName")
+	local startedAt = character:GetAttribute("ShotStartedAt")
+	if typeof(name) == "string" and typeof(startedAt) == "number" then
+		return shotsByName[name], workspace:GetServerTimeNow() - startedAt
 	end
-	local launchedAt = character:GetAttribute("LaunchedAt")
-	local launchPull = character:GetAttribute("LaunchPull")
-	if typeof(launchedAt) == "number" and typeof(launchPull) == "number" then
-		return releasePose(now - launchedAt, launchPull)
+	return nil, 0
+end
+
+local function poseFor(character: Model, isLocal: boolean): Pose?
+	local shot, since = currentShot(character, isLocal)
+	if shot then
+		return shotPose(shot, since)
 	end
 	return nil
 end
@@ -212,13 +240,26 @@ end
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local uploaded = Config.Slingshot.DrawAnimationId ~= "" and Config.Slingshot.ReleaseAnimationId ~= ""
 local PERFECT = Config.Charge.Stages[1].Name
+
+local function configuredId(name: string): string
+	local id = Config.Slingshot.ShotAnimationIds[name]
+	return if typeof(id) == "string" then id else ""
+end
+
+-- Whether every shot has an uploaded id (then everyone sees them).
+local uploaded = true
+for _, shot in ShotAnimations do
+	if configuredId(shot.Name) == "" then
+		uploaded = false
+	end
+end
 
 -- The animation id to use: the uploaded one, or in Studio a temporary id for the
 -- KeyframeSequence in ReplicatedStorage.BowAnimations (Studio-only, so you can try
 -- them before uploading).
-local function animationId(configured: string, name: string): string?
+local function animationId(name: string): string?
+	local configured = configuredId(name)
 	if configured ~= "" then
 		return configured
 	end
@@ -236,77 +277,75 @@ local function animationId(configured: string, name: string): string?
 	return if ok then id else nil
 end
 
-local drawId = animationId(Config.Slingshot.DrawAnimationId, "BowDraw")
-local releaseId = animationId(Config.Slingshot.ReleaseAnimationId, "BowRelease")
-local useOwnAnimations = drawId ~= nil and releaseId ~= nil
-
-type Tracks = { animator: Animator, draw: AnimationTrack, release: AnimationTrack }
-local tracks: Tracks? = nil
-
-local function loadTrack(animator: Animator, id: string, priority: Enum.AnimationPriority): AnimationTrack
-	local animation = Instance.new("Animation")
-	animation.AnimationId = id
-	local track = animator:LoadAnimation(animation)
-	track.Priority = priority
-	track.Looped = false
-	return track
+local shotIds: { [string]: string } = {}
+local useOwnAnimations = true
+for _, shot in ShotAnimations do
+	local id = animationId(shot.Name)
+	if id then
+		shotIds[shot.Name] = id
+	else
+		useOwnAnimations = false
+	end
 end
+
+type Tracks = { animator: Animator, byName: { [string]: AnimationTrack } }
+local tracks: Tracks? = nil
 
 -- The tracks for your current character (loaded again after a respawn).
 local function ownTracks(): Tracks?
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
-	if not animator or not drawId or not releaseId then
+	if not animator then
 		return nil
 	end
 	if tracks and tracks.animator == animator then
 		return tracks
 	end
-	local release = loadTrack(animator, releaseId, Enum.AnimationPriority.Action2)
-	local loaded = {
-		animator = animator,
-		draw = loadTrack(animator, drawId, Enum.AnimationPriority.Action),
-		release = release,
-	}
-	-- Impact: hold still for a Perfect (the hit-stop under the impact frames).
-	release:GetMarkerReachedSignal("Impact"):Connect(function()
-		if LocalCharge.releaseStage == PERFECT then
-			release:AdjustSpeed(0)
-			task.delay(Config.Charge.PerfectFreeze, function()
-				if release.IsPlaying then
-					release:AdjustSpeed(1)
-				end
-			end)
-		end
-	end)
-	-- Done: ease back into the normal animations.
-	release:GetMarkerReachedSignal("Done"):Connect(function()
-		release:Stop(0.35)
-	end)
+	local byName = {}
+	for name, id in shotIds do
+		local animation = Instance.new("Animation")
+		animation.AnimationId = id
+		local track = animator:LoadAnimation(animation)
+		track.Priority = Enum.AnimationPriority.Action2
+		track.Looped = false
+		-- Impact: hold still for a Perfect (the hit-stop under the impact frames).
+		track:GetMarkerReachedSignal("Impact"):Connect(function()
+			if LocalCharge.releaseStage == PERFECT then
+				track:AdjustSpeed(0)
+				task.delay(Config.Charge.PerfectFreeze, function()
+					if track.IsPlaying then
+						track:AdjustSpeed(1)
+					end
+				end)
+			end
+		end)
+		-- Done: ease back into the normal animations.
+		track:GetMarkerReachedSignal("Done"):Connect(function()
+			track:Stop(0.45)
+		end)
+		byName[name] = track
+	end
+	local loaded = { animator = animator, byName = byName }
 	tracks = loaded
 	return loaded
 end
 
-local wasCharging = false
+local playingShotAt = -math.huge
 
 local function updateOwnAnimations()
 	local t = ownTracks()
 	if not t then
 		return
 	end
-	if LocalCharge.charging then
-		if not wasCharging then
-			wasCharging = true
-			t.release:Stop(0.1)
-			t.draw:Play(0.12, 1, 0) -- speed 0: the meter moves it
+	if LocalCharge.shooting and LocalCharge.shotStartedAt ~= playingShotAt then
+		playingShotAt = LocalCharge.shotStartedAt
+		for _, track in t.byName do
+			track:Stop(0.1)
 		end
-		-- BowDraw is 1 second long: its time is the meter value.
-		local meter = Charge.valueAt(os.clock() - LocalCharge.startedAt)
-		t.draw.TimePosition = math.clamp(meter, 0, 0.999) * t.draw.Length
-	elseif wasCharging then
-		wasCharging = false
-		t.draw:Stop(0.06)
-		t.release:Play(0.04, 1, 1)
+		local track = t.byName[LocalCharge.shotName]
+		if track then
+			track:Play(0.2, 1, 1)
+		end
 	end
 end
 
@@ -335,10 +374,9 @@ RunService.PreSimulation:Connect(function()
 			posed[character] = true
 			if not animated then
 				applyPose(character, pose, slingshot)
+				applySpin(character, pose.spin)
 			end
-			applySpin(character, pose.spin)
-			-- Your own band is driven by ChargeController; other players' bands here.
-			if slingshot and not isLocal then
+			if slingshot then
 				SlingshotModel.setPull(slingshot, pose.band)
 			end
 		elseif posed[character] then
@@ -347,7 +385,7 @@ RunService.PreSimulation:Connect(function()
 			if not animated then
 				clearPose(character)
 			end
-			if slingshot and not isLocal then
+			if slingshot then
 				SlingshotModel.setPull(slingshot, 0)
 			end
 		end

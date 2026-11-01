@@ -169,8 +169,6 @@ Config.Charge = {
 	-- On a Perfect the whole shot freezes for this long on the release, with
 	-- impact frames (flashes and burst lines), before the egg flies off.
 	PerfectFreeze = 0.14,
-	-- After the shot, the player whips round in a full spin (PoseController).
-	ReleaseSpin = true,
 }
 
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
@@ -196,13 +194,17 @@ Config.Launch = {
 Config.Slingshot = {
 	BasePower = 320, -- first slingshot: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 
-	-- The bow animations, as "rbxassetid://123" (README: "Bow animations"). Upload
-	-- ReplicatedStorage.BowAnimations.BowDraw and BowRelease from the account (or group)
-	-- that owns the game and paste the ids here. Left empty, Studio plays them straight
-	-- from ReplicatedStorage (only you see them, and only in Studio), and a live game
+	-- The bow shot animations, as "rbxassetid://123" (README: "Bow animations").
+	-- After you tap, one plays (BowShot1 70% of the time, BowShot2 30%; the chances
+	-- and timings are in ShotAnimations.luau). Upload ReplicatedStorage.BowAnimations
+	-- .BowShot1 and .BowShot2 from the account (or group) that owns the game and
+	-- paste the ids here. Left empty, Studio plays them straight from
+	-- ReplicatedStorage (only you see them, and only in Studio), and a live game
 	-- poses the arms from code instead.
-	DrawAnimationId = "",
-	ReleaseAnimationId = "",
+	ShotAnimationIds = {
+		BowShot1 = "",
+		BowShot2 = "",
+	} :: { [string]: string },
 }
 
 -- The Robux shop (the Shop button). Create each item on the Creator Dashboard

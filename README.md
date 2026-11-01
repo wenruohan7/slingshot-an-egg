@@ -60,21 +60,23 @@ The models are made by Python scripts in `blender/`, so they can be changed and 
 
 ## Bow animations
 
-Drawing the bow is a character animation (`animations/BowDraw.rbxmx`, `animations/BowRelease.rbxmx`, made by `blender/bow_animation.py`; `models/bow-animation-preview.png` shows the poses). Rojo puts them in **ReplicatedStorage > BowAnimations**.
+Shooting is a character animation that plays after you tap (`animations/BowShot1.rbxmx` and `animations/BowShot2.rbxmx`, made by `blender/bow_animation.py`). Rojo puts them in **ReplicatedStorage > BowAnimations**.
 
-- **BowDraw** is scrubbed by the charge meter: its time is the meter value, so the drawing hand always sits on the string.
-- **BowRelease** plays when you let go. On a **Perfect** it freezes on its `Impact` frame for `Config.Charge.PerfectFreeze` seconds while the impact frames flash (`src/client/ShotCamera.client.luau`), and fades back to normal at `Done`.
+- While the meter bounces you just stand holding the bow. When you tap, the camera swings round to your side and one shot plays:
+  - **BowShot1** (70%, 3 s): lift the bow, a slow smooth draw, a held breath, release, follow-through.
+  - **BowShot2** (30%, 3.6 s): a low power stance, a heavy draw with a deep lean back, a big kick on the release and a full spin.
+- The egg leaves at the animation's `Release` frame (`ReleaseAt` in `src/shared/ShotAnimations.luau`, which the script writes along with the chances). On a **Perfect** it freezes on its `Impact` frame for `Config.Charge.PerfectFreeze` seconds while the impact frames flash, and fades back to normal at `Done`.
 
 In Studio they play without uploading (only for you, only in Studio). For the real game, upload them once:
 
 1. In Studio, with Rojo connected, open **ReplicatedStorage > BowAnimations** in the Explorer.
-2. Right-click **BowDraw** and choose **Save to Roblox**. Give it a name, pick the owner of the game (you, or the group), and click Save/Submit. Copy the number it shows (the asset id).
-3. Do the same for **BowRelease**.
-4. In `src/shared/Config.luau`, set `DrawAnimationId = "rbxassetid://<BowDraw id>"` and `ReleaseAnimationId = "rbxassetid://<BowRelease id>"`.
+2. Right-click **BowShot1** and choose **Save to Roblox**. Give it a name, pick the owner of the game (you, or the group), and click Save/Submit. Copy the number it shows (the asset id).
+3. Do the same for **BowShot2**.
+4. In `src/shared/Config.luau`, under `ShotAnimationIds`, set `BowShot1 = "rbxassetid://<id>"` and `BowShot2 = "rbxassetid://<id>"`.
 
-If **Save to Roblox** isn't in the menu: **Avatar tab > Rig Builder > Block Rig** (R15), copy **BowDraw** into the new dummy, open **Avatar tab > Animation Editor**, click the dummy, then **... > Load** and pick BowDraw, then **... > Publish to Roblox**. Here you can also tweak the poses by hand before publishing.
+If **Save to Roblox** isn't in the menu: **Avatar tab > Rig Builder > Block Rig** (R15), copy **BowShot1** into the new dummy, open **Avatar tab > Animation Editor**, click the dummy, then **... > Load** and pick it, then **... > Publish to Roblox**. Here you can also tweak the poses by hand before publishing. If you make your own shot in Blender or the Animation Editor instead, keep the same name (or add it to `blender/bow_animation.py`) and keep a `Release` marker where the string lets go, then set its `ReleaseAt`.
 
-To change the poses in code, edit `blender/bow_animation.py` and run `python3 blender/bow_animation.py` (and `python3 blender/bow_animation_preview.py` for the picture; it needs `pip install bpy`), then upload again.
+To change the shots in code, edit `blender/bow_animation.py` and run `python3 blender/bow_animation.py`, then upload again.
 
 Without animations (a live game with no ids set), the arms are posed from code instead (`src/client/PoseController.client.luau`).
 
