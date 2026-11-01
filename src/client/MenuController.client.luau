@@ -15,6 +15,7 @@ local Config = require(Shared.Config)
 local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
 local EggModel = require(Shared.EggModel)
+local PetModel = require(Shared.PetModel)
 local Pets = require(Shared.Pets)
 local Remotes = require(Shared.Remotes)
 local Shops = require(Shared.Shops)
@@ -80,11 +81,18 @@ end
 -- Menu buttons
 --------------------------------------------------------------------------------
 
+-- A column of chunky square buttons on the left, each with a little 3D picture
+-- that slowly turns and its name along the bottom. The coin and Luck counters
+-- (HudController) sit just under the column, at the screen's middle.
+local MENU_TILE = 104
+local MENU_GAP = 14
+local MENU_NAMES = { "Index", "Shop" }
+
 local menu = Instance.new("Frame")
 menu.Name = "Menu"
-menu.AnchorPoint = Vector2.new(0, 0.5)
-menu.Position = UDim2.new(0, 16, 0.45, 0)
-menu.Size = UDim2.fromOffset(200, 166)
+menu.AnchorPoint = Vector2.new(0, 1)
+menu.Position = UDim2.new(0, 16, 0.5, -4)
+menu.Size = UDim2.fromOffset(MENU_TILE + 10, #MENU_NAMES * (MENU_TILE + MENU_GAP))
 menu.BackgroundTransparency = 1
 menu.Parent = gui
 if UserInputService.TouchEnabled then
@@ -93,33 +101,105 @@ if UserInputService.TouchEnabled then
 	small.Parent = menu
 end
 
-local function menuButton(name: string, color: Color3, y: number): (TextButton, TextLabel)
+type Spinner = { model: Instance, camera: Camera, centre: Vector3, distance: number }
+local menuSpinners: { Spinner } = {}
+
+-- Puts a model in a viewport and remembers how to turn the camera around it.
+local function menuIcon(button: GuiObject, model: Instance)
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Icon"
+	viewport.AnchorPoint = Vector2.new(0.5, 0)
+	viewport.Position = UDim2.new(0.5, 0, 0, 4)
+	viewport.Size = UDim2.new(1, -12, 1, -26)
+	viewport.BackgroundTransparency = 1
+	viewport.Ambient = Color3.fromRGB(190, 190, 200)
+	viewport.LightColor = Color3.new(1, 1, 1)
+	viewport.LightDirection = Vector3.new(-1, -1.5, -0.6)
+	viewport.Parent = button
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	model.Parent = viewport
+
+	local low, high = Vector3.one * math.huge, -Vector3.one * math.huge
+	for _, item in model:GetDescendants() do
+		if item:IsA("BasePart") then
+			local half = item.Size / 2
+			low = low:Min(item.Position - half)
+			high = high:Max(item.Position + half)
+		end
+	end
+	if model:IsA("BasePart") then
+		low = model.Position - model.Size / 2
+		high = model.Position + model.Size / 2
+	end
+	if low.X == math.huge then
+		return
+	end
+	local centre = (low + high) / 2
+	local radius = (high - low).Magnitude / 2
+	local distance = radius / math.tan(math.rad(camera.FieldOfView / 2)) * 1.0
+	table.insert(menuSpinners, { model = model, camera = camera, centre = centre, distance = distance })
+end
+
+RunService.RenderStepped:Connect(function()
+	local t = os.clock()
+	for i, spinner in menuSpinners do
+		local angle = t * 0.8 + i * 2
+		local offset = Vector3.new(math.cos(angle), 0.45, math.sin(angle)).Unit * spinner.distance
+		spinner.camera.CFrame = CFrame.lookAt(spinner.centre + offset, spinner.centre)
+	end
+end)
+
+local function menuButton(name: string, color: Color3, order: number, model: Instance?): (TextButton, TextLabel)
 	local button = Instance.new("TextButton")
 	button.Name = name
-	button.Position = UDim2.fromOffset(0, y)
-	button.Size = UDim2.fromOffset(190, 74)
-	button.BackgroundColor3 = color
+	button.Position = UDim2.fromOffset(4, (order - 1) * (MENU_TILE + MENU_GAP))
+	button.Size = UDim2.fromOffset(MENU_TILE, MENU_TILE)
+	button.BackgroundColor3 = Color3.new(1, 1, 1)
 	button.AutoButtonColor = false
 	button.Text = ""
 	button.Parent = menu
-	corner(button, UDim.new(0, 14))
+	corner(button, UDim.new(0, 20))
 	stroke(button, Color3.fromRGB(20, 20, 30), 4)
+	local fill = Instance.new("UIGradient")
+	fill.Color = ColorSequence.new(Color3.fromRGB(75, 82, 110), Color3.fromRGB(38, 42, 60))
+	fill.Rotation = 90
+	fill.Parent = button
+
+	-- A thin coloured ring just inside the edge, in the button's colour.
+	local ring = Instance.new("Frame")
+	ring.AnchorPoint = Vector2.new(0.5, 0.5)
+	ring.Position = UDim2.fromScale(0.5, 0.5)
+	ring.Size = UDim2.new(1, -10, 1, -10)
+	ring.BackgroundTransparency = 1
+	ring.Parent = button
+	corner(ring, UDim.new(0, 16))
+	stroke(ring, color, 2.5).Transparency = 0.25
+
+	if model then
+		menuIcon(button, model)
+	end
 
 	local text = label({
-		Position = UDim2.fromOffset(14, 12),
-		Size = UDim2.new(1, -28, 1, -24),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 6),
+		Size = UDim2.new(1, 4, 0, 34),
 		Text = name,
+		ZIndex = 2,
 		TextStrokeTransparency = 1,
 		Parent = button,
 	})
-	stroke(text, Color3.fromRGB(20, 20, 30), 3)
+	stroke(text, Color3.fromRGB(20, 20, 30), 3.5)
 
 	-- Red circle in the corner: "!" or a count.
 	local badge = label({
 		Name = "Badge",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(1, -4, 0, 4),
+		Position = UDim2.new(1, -6, 0, 6),
 		Size = UDim2.fromOffset(34, 34),
+		ZIndex = 3,
 		BackgroundTransparency = 0,
 		BackgroundColor3 = BADGE_COLOR,
 		TextStrokeTransparency = 1,
@@ -137,8 +217,11 @@ local function menuButton(name: string, color: Color3, y: number): (TextButton, 
 	return button, badge
 end
 
-local shopButton = menuButton("Shop", Color3.fromRGB(80, 210, 70), 0) -- the Robux shop
-local indexButton, indexBadge = menuButton("Index", Color3.fromRGB(60, 170, 255), 90)
+-- Pictures: a pet for the Index, a shiny egg for the Robux shop.
+local indexPicture = PetModel.build({ Id = Pets.idFor(1, 3) }, CFrame.new())
+local shopPicture = EggModel.build(5)
+local indexButton, indexBadge = menuButton("Index", Color3.fromRGB(80, 170, 255), 1, indexPicture)
+local shopButton = menuButton("Shop", Color3.fromRGB(255, 190, 60), 2, shopPicture) -- the Robux shop
 
 --------------------------------------------------------------------------------
 -- Hint line along the top
@@ -764,81 +847,439 @@ end)
 --------------------------------------------------------------------------------
 -- Robux shop (the Shop button): game passes and coin packs
 --------------------------------------------------------------------------------
+-- A warm header, then sections: Featured (one big card per featured item, with
+-- tiles showing what it does), Passes, and Coins (Buy 1 and Buy 3 buttons).
 
-type RobuxItem = { Key: string, Name: string, Text: string, Icon: string, Price: number, Id: number }
-local ROBUX_CARD = Vector2.new(214, 176)
+type RobuxItem = {
+	Key: string,
+	Name: string,
+	Text: string,
+	Icon: string,
+	Price: number,
+	Id: number,
+	Featured: boolean?,
+	Tiles: string?,
+	Tag: string?,
+	Price3: number?,
+	Id3: number?,
+}
 
-local robuxGrid = Instance.new("ScrollingFrame")
-robuxGrid.Position = UDim2.fromOffset(16, 70)
-robuxGrid.Size = UDim2.new(1, -32, 1, -86)
-robuxGrid.BackgroundTransparency = 1
-robuxGrid.BorderSizePixel = 0
-robuxGrid.ScrollBarThickness = 8
-robuxGrid.AutomaticCanvasSize = Enum.AutomaticSize.Y
-robuxGrid.CanvasSize = UDim2.new()
-robuxGrid.Parent = robuxPanel
-local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.fromOffset(ROBUX_CARD.X, ROBUX_CARD.Y)
-gridLayout.CellPadding = UDim2.fromOffset(12, 12)
-gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-gridLayout.Parent = robuxGrid
+local ROBUX_ICON = "rbxasset://textures/ui/common/robux.png"
+local BUY_GREEN = Color3.fromRGB(80, 215, 70)
+local BUY_LIP = Color3.fromRGB(40, 150, 40)
+local GREY = Color3.fromRGB(110, 110, 130)
+local GREY_LIP = Color3.fromRGB(70, 70, 90)
+local HEADER_TOP = Color3.fromRGB(255, 205, 70)
+local HEADER_BOTTOM = Color3.fromRGB(255, 150, 40)
 
-local robuxButtons: { { item: RobuxItem, isPass: boolean, button: TextButton } } = {}
+local function gradient(parent: Instance, top: Color3, bottom: Color3, rotation: number?)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(top, bottom)
+	g.Rotation = rotation or 90
+	g.Parent = parent
+end
+
+-- The header bar: a warm gradient across the top of the panel, under the title
+-- and the X. The bottom half is square so only the panel's top corners round.
+do
+	for _, part in { "Round", "Square" } do
+		local bar = Instance.new("Frame")
+		bar.Name = "Header" .. part
+		bar.BorderSizePixel = 0
+		bar.ZIndex = 0
+		bar.BackgroundColor3 = Color3.new(1, 1, 1)
+		if part == "Round" then
+			bar.Size = UDim2.new(1, 0, 0, 76)
+			corner(bar, UDim.new(0, 24))
+			gradient(bar, HEADER_TOP, HEADER_BOTTOM)
+		else
+			bar.Position = UDim2.fromOffset(0, 38)
+			bar.Size = UDim2.new(1, 0, 0, 38)
+			local g = Instance.new("UIGradient")
+			g.Color = ColorSequence.new(HEADER_BOTTOM:Lerp(HEADER_TOP, 0.5), HEADER_BOTTOM)
+			g.Rotation = 90
+			g.Parent = bar
+		end
+		bar.Parent = robuxPanel
+	end
+	local line = Instance.new("Frame")
+	line.Position = UDim2.fromOffset(0, 74)
+	line.Size = UDim2.new(1, 0, 0, 4)
+	line.BorderSizePixel = 0
+	line.BackgroundColor3 = DARK
+	line.Parent = robuxPanel
+	local title = robuxPanel:FindFirstChildOfClass("TextLabel")
+	if title then
+		stroke(title, DARK, 4)
+		title.TextStrokeTransparency = 1
+	end
+end
+
+local robuxList = Instance.new("ScrollingFrame")
+robuxList.Name = "Items"
+robuxList.Position = UDim2.fromOffset(14, 88)
+robuxList.Size = UDim2.new(1, -28, 1, -100)
+robuxList.BackgroundTransparency = 1
+robuxList.BorderSizePixel = 0
+robuxList.ScrollBarThickness = 8
+robuxList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+robuxList.CanvasSize = UDim2.new()
+robuxList.Parent = robuxPanel
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 10)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = robuxList
+local listPadding = Instance.new("UIPadding")
+listPadding.PaddingTop = UDim.new(0, 4)
+listPadding.PaddingBottom = UDim.new(0, 8)
+listPadding.Parent = robuxList
+
+local robuxOrder = 0
+local function nextOrder(): number
+	robuxOrder += 1
+	return robuxOrder
+end
+
+-- A section title in a dark pill between two lines: ——— Featured ———
+local function divider(text: string)
+	local row = Instance.new("Frame")
+	row.LayoutOrder = nextOrder()
+	row.Size = UDim2.new(1, -12, 0, 44)
+	row.BackgroundTransparency = 1
+	row.Parent = robuxList
+	for _, side in { 0, 1 } do
+		local line = Instance.new("Frame")
+		line.AnchorPoint = Vector2.new(side, 0.5)
+		line.Position = UDim2.fromScale(side, 0.5)
+		line.Size = UDim2.new(0.5, -120, 0, 4)
+		line.BorderSizePixel = 0
+		line.BackgroundColor3 = Color3.fromRGB(90, 95, 120)
+		line.Parent = row
+		corner(line, UDim.new(1, 0))
+	end
+	local pill = label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(210, 40),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = Color3.fromRGB(45, 50, 75),
+		TextStrokeTransparency = 1,
+		Text = text,
+		Parent = row,
+	})
+	corner(pill, UDim.new(1, 0))
+	stroke(pill, Color3.fromRGB(90, 95, 120), 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 7)
+	padding.PaddingBottom = UDim.new(0, 7)
+	padding.Parent = pill
+end
+
+-- A chunky buy button: green with a darker lip under it, the Robux icon and the
+-- price, and a small caption above ("Buy 1"). Returns the button and its parts.
+type RobuxButton = { button: TextButton, lip: Frame, price: TextLabel, icon: ImageLabel }
+local function robuxButton(parent: Instance, position: UDim2, size: UDim2, caption: string?): RobuxButton
+	if caption then
+		local captionLabel = label({
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = position + UDim2.new(size.X.Scale / 2, size.X.Offset / 2, 0, -2),
+			Size = UDim2.new(size.X.Scale, size.X.Offset, 0, 26),
+			Text = caption,
+			TextStrokeTransparency = 1,
+			Parent = parent,
+		})
+		stroke(captionLabel, DARK, 2.5)
+	end
+	local lip = Instance.new("Frame")
+	lip.Position = position + UDim2.fromOffset(0, 6)
+	lip.Size = size
+	lip.BackgroundColor3 = BUY_LIP
+	lip.Parent = parent
+	corner(lip, UDim.new(0, 14))
+	stroke(lip, DARK, 3)
+
+	local button = Instance.new("TextButton")
+	button.Position = position
+	button.Size = size
+	button.BackgroundColor3 = BUY_GREEN
+	button.AutoButtonColor = false
+	button.Text = ""
+	button.Parent = parent
+	corner(button, UDim.new(0, 14))
+	stroke(button, DARK, 3)
+	gradient(button, Color3.new(1, 1, 1), Color3.fromRGB(215, 215, 215))
+
+	local icon = Instance.new("ImageLabel")
+	icon.AnchorPoint = Vector2.new(0, 0.5)
+	icon.Position = UDim2.new(0, 10, 0.5, 0)
+	icon.SizeConstraint = Enum.SizeConstraint.RelativeYY
+	icon.BackgroundTransparency = 1
+	icon.Image = ROBUX_ICON
+	icon.Parent = button
+	local iconRatio = Instance.new("UIAspectRatioConstraint")
+	iconRatio.Parent = icon
+	icon.Size = UDim2.fromScale(0.62, 0.62)
+
+	local price = label({
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.new(1, -60, 0.7, 0),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextStrokeTransparency = 1,
+		Text = "",
+		Parent = button,
+	})
+	stroke(price, DARK, 3)
+	return { button = button, lip = lip, price = price, icon = icon }
+end
+
+type RobuxEntry = { item: RobuxItem, isPass: boolean, id: number, price: number, parts: RobuxButton }
+local robuxEntries: { RobuxEntry } = {}
+
+local function setRobuxButton(parts: RobuxButton, text: string, active: boolean, showIcon: boolean)
+	parts.price.Text = text
+	parts.icon.Visible = showIcon
+	parts.price.Size = if showIcon then UDim2.new(1, -60, 0.7, 0) else UDim2.new(1, -20, 0.6, 0)
+	parts.price.TextXAlignment = if showIcon then Enum.TextXAlignment.Right else Enum.TextXAlignment.Center
+	parts.price.AnchorPoint = if showIcon then Vector2.new(1, 0.5) else Vector2.new(0.5, 0.5)
+	parts.price.Position = if showIcon then UDim2.new(1, -10, 0.5, 0) else UDim2.fromScale(0.5, 0.5)
+	parts.button.BackgroundColor3 = if active then BUY_GREEN else GREY
+	parts.lip.BackgroundColor3 = if active then BUY_LIP else GREY_LIP
+	parts.button.AutoButtonColor = active
+end
 
 local function refreshRobux()
-	for _, entry in robuxButtons do
+	for _, entry in robuxEntries do
 		if entry.isPass and player:GetAttribute("Pass_" .. entry.item.Key) == true then
-			setButton(entry.button, "Owned", Color3.fromRGB(110, 110, 130), false)
-		elseif entry.item.Id == 0 then
-			setButton(entry.button, "Coming soon", Color3.fromRGB(80, 80, 100), false)
+			setRobuxButton(entry.parts, "Owned", false, false)
+		elseif entry.id == 0 then
+			setRobuxButton(entry.parts, "Coming soon", false, false)
 		else
-			setButton(entry.button, `R$ {entry.item.Price}`, Color3.fromRGB(70, 200, 70), true)
+			setRobuxButton(entry.parts, tostring(entry.price), true, true)
 		end
 	end
 end
 
-local function addRobuxItem(item: RobuxItem, isPass: boolean, order: number)
-	local frame = card(robuxGrid, order, ROBUX_CARD)
-	frame.Size = UDim2.new() -- the grid sizes it
-	label({ Position = UDim2.fromOffset(8, 6), Size = UDim2.fromOffset(52, 52), Text = item.Icon, Parent = frame })
-	label({
-		Position = UDim2.fromOffset(66, 12),
-		Size = UDim2.new(1, -74, 0, 40),
-		Text = item.Name,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = frame,
-	})
-	label({
-		Position = UDim2.fromOffset(10, 62),
-		Size = UDim2.new(1, -20, 0, 48),
-		Text = item.Text,
-		TextColor3 = DIM_TEXT,
-		TextWrapped = true,
-		Parent = frame,
-	})
-	local button = makeButton(frame, UDim2.new(0, 12, 1, -58), UDim2.new(1, -24, 0, 46))
-	button.Activated:Connect(function()
-		bounce(button)
-		if not button.AutoButtonColor then
+local function addBuy(item: RobuxItem, isPass: boolean, id: number, price: number, parts: RobuxButton)
+	parts.button.Activated:Connect(function()
+		bounce(parts.button)
+		if not parts.button.AutoButtonColor then
 			return
 		end
 		if isPass then
-			MarketplaceService:PromptGamePassPurchase(player, item.Id)
+			MarketplaceService:PromptGamePassPurchase(player, id)
 		else
-			MarketplaceService:PromptProductPurchase(player, item.Id)
+			MarketplaceService:PromptProductPurchase(player, id)
 		end
 	end)
-	table.insert(robuxButtons, { item = item, isPass = isPass, button = button })
+	table.insert(robuxEntries, { item = item, isPass = isPass, id = id, price = price, parts = parts })
 	if isPass then
 		player:GetAttributeChangedSignal("Pass_" .. item.Key):Connect(refreshRobux)
 	end
 end
 
-for i, pass in Config.RobuxShop.Passes do
-	addRobuxItem(pass, true, i)
+-- The item's picture: its icon in a soft glowing circle.
+local function iconBubble(parent: Instance, item: RobuxItem, size: number, x: number)
+	local glow = Instance.new("Frame")
+	glow.AnchorPoint = Vector2.new(0, 0.5)
+	glow.Position = UDim2.new(0, x, 0.5, 0)
+	glow.Size = UDim2.fromOffset(size, size)
+	glow.BackgroundColor3 = Color3.new(1, 1, 1)
+	glow.BackgroundTransparency = 0.8
+	glow.Parent = parent
+	corner(glow, UDim.new(1, 0))
+	local inner = Instance.new("Frame")
+	inner.AnchorPoint = Vector2.new(0.5, 0.5)
+	inner.Position = UDim2.fromScale(0.5, 0.5)
+	inner.Size = UDim2.fromScale(0.74, 0.74)
+	inner.BackgroundColor3 = Color3.new(1, 1, 1)
+	inner.BackgroundTransparency = 0.75
+	inner.Parent = glow
+	corner(inner, UDim.new(1, 0))
+	label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.6, 0.6),
+		Text = item.Icon,
+		TextStrokeTransparency = 1,
+		Parent = glow,
+	})
 end
-for i, product in Config.RobuxShop.Products do
-	addRobuxItem(product, false, 100 + i)
+
+-- A small ribbon on the card's top-left corner.
+local function ribbon(parent: Instance, text: string)
+	local tag = label({
+		Position = UDim2.fromOffset(-6, -8),
+		Size = UDim2.fromOffset(130, 30),
+		Rotation = -6,
+		ZIndex = 3,
+		BackgroundTransparency = 0,
+		BackgroundColor3 = Color3.fromRGB(235, 60, 70),
+		TextStrokeTransparency = 1,
+		Text = text,
+		Parent = parent,
+	})
+	corner(tag, UDim.new(1, 0))
+	stroke(tag, DARK, 2.5).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke(tag, DARK, 2)
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 5)
+	padding.PaddingBottom = UDim.new(0, 5)
+	padding.Parent = tag
+end
+
+local function shopCard(height: number, top: Color3, bottom: Color3): Frame
+	local frame = Instance.new("Frame")
+	frame.LayoutOrder = nextOrder()
+	frame.Size = UDim2.new(1, -16, 0, height)
+	frame.BackgroundColor3 = Color3.new(1, 1, 1)
+	frame.Parent = robuxList
+	corner(frame, UDim.new(0, 18))
+	stroke(frame, DARK, 4)
+	gradient(frame, top, bottom, 0)
+	return frame
+end
+
+-- Tiles for the 2x Luck pass: how much more likely each rarity gets. Luck
+-- multiplies a rarity's chance by Luck ^ (how rare it is, 0 to 1).
+local function luckTiles(parent: Instance, position: UDim2, size: UDim2)
+	local grid = Instance.new("Frame")
+	grid.Position = position
+	grid.Size = size
+	grid.BackgroundTransparency = 1
+	grid.Parent = parent
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(1 / 3, -6, 0.5, -5)
+	layout.CellPadding = UDim2.fromOffset(6, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = grid
+	local count = #Config.Rarities
+	local boost = Config.RobuxShop.LuckPassMultiplier
+	for i = 2, count do -- Common never changes, so it gets no tile
+		local rarity = Config.Rarities[i]
+		local tile = Instance.new("Frame")
+		tile.LayoutOrder = i
+		tile.BackgroundColor3 = Color3.new(1, 1, 1)
+		tile.BackgroundTransparency = 0.7
+		tile.Parent = grid
+		corner(tile, UDim.new(0, 10))
+		stroke(tile, rarity.Color, 2).Transparency = 0.2
+		local nameText = label({
+			Position = UDim2.fromScale(0.06, 0.08),
+			Size = UDim2.fromScale(0.88, 0.4),
+			Text = rarity.Name,
+			TextColor3 = rarity.Color,
+			TextStrokeTransparency = 1,
+			Parent = tile,
+		})
+		stroke(nameText, DARK, 2)
+		local percent = math.floor((boost ^ ((i - 1) / (count - 1)) - 1) * 100 + 0.5)
+		local pill = label({
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -4),
+			Size = UDim2.new(0.9, 0, 0.46, 0),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = Color3.fromRGB(50, 160, 60),
+			Text = `+{percent}%`,
+			TextStrokeTransparency = 1,
+			Parent = tile,
+		})
+		corner(pill, UDim.new(1, 0))
+		stroke(pill, DARK, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke(pill, DARK, 1.5)
+	end
+end
+
+local function cardTitle(parent: Instance, item: RobuxItem, x: number, width: number, y: number)
+	local nameText = label({
+		Position = UDim2.fromOffset(x, y),
+		Size = UDim2.fromOffset(width, 40),
+		Text = item.Name,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 1,
+		Parent = parent,
+	})
+	stroke(nameText, DARK, 3.5)
+	local pitch = label({
+		Position = UDim2.fromOffset(x, y + 42),
+		Size = UDim2.fromOffset(width, 26),
+		Text = item.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 1,
+		Parent = parent,
+	})
+	stroke(pitch, DARK, 2.5)
+end
+
+-- Big featured card: picture, name, pitch, tiles, and the buy button on the right.
+local function featuredCard(item: RobuxItem, isPass: boolean)
+	local frame = shopCard(214, Color3.fromRGB(205, 140, 255), Color3.fromRGB(135, 80, 225))
+	iconBubble(frame, item, 150, 14)
+	cardTitle(frame, item, 178, 300, 12)
+	if item.Tiles == "Luck" then
+		luckTiles(frame, UDim2.fromOffset(178, 84), UDim2.new(1, -366, 0, 118))
+	end
+	local parts = robuxButton(frame, UDim2.new(1, -176, 0, 74), UDim2.fromOffset(160, 74), "Buy")
+	addBuy(item, isPass, item.Id, item.Price, parts)
+	if item.Tag then
+		ribbon(frame, item.Tag)
+	end
+end
+
+-- Regular card: picture, name and pitch, buy buttons on the right
+-- (Buy 1 and Buy 3 when the item has a 3-pack).
+local function itemCard(item: RobuxItem, isPass: boolean)
+	local hasThree = item.Id3 ~= nil and item.Price3 ~= nil
+	local frame = shopCard(if hasThree then 126 else 110, Color3.fromRGB(95, 175, 255), Color3.fromRGB(60, 110, 220))
+	iconBubble(frame, item, 92, 10)
+	local buttonsWidth = if hasThree then 296 else 150
+	cardTitle(frame, item, 114, 640 - 114 - buttonsWidth - 30, if hasThree then 22 else 16)
+	if hasThree then
+		local three = robuxButton(frame, UDim2.new(1, -150, 0, 44), UDim2.fromOffset(136, 60), "Buy 3")
+		addBuy(item, isPass, item.Id3 :: number, item.Price3 :: number, three)
+		local one = robuxButton(frame, UDim2.new(1, -296, 0, 44), UDim2.fromOffset(136, 60), "Buy 1")
+		addBuy(item, isPass, item.Id, item.Price, one)
+	else
+		local one = robuxButton(frame, UDim2.new(1, -150, 0.5, -26), UDim2.fromOffset(136, 60), nil)
+		addBuy(item, isPass, item.Id, item.Price, one)
+	end
+	if item.Tag then
+		ribbon(frame, item.Tag)
+	end
+end
+
+local passes = (Config.RobuxShop.Passes :: any) :: { RobuxItem }
+local products = (Config.RobuxShop.Products :: any) :: { RobuxItem }
+
+local featured: { { item: RobuxItem, isPass: boolean } } = {}
+for _, pass in passes do
+	if pass.Featured then
+		table.insert(featured, { item = pass, isPass = true })
+	end
+end
+for _, product in products do
+	if product.Featured then
+		table.insert(featured, { item = product, isPass = false })
+	end
+end
+if #featured > 0 then
+	divider("Featured")
+	for _, entry in featured do
+		featuredCard(entry.item, entry.isPass)
+	end
+end
+divider("Passes")
+for _, pass in passes do
+	if not pass.Featured then
+		itemCard(pass, true)
+	end
+end
+divider("Coins")
+for _, product in products do
+	if not product.Featured then
+		itemCard(product, false)
+	end
 end
 refreshRobux()
 

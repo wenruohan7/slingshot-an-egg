@@ -82,6 +82,8 @@ Without animations (a live game with no ids set), the arms are posed from code i
 
 The Shop button opens the Robux shop, set up in `Config.RobuxShop`. To make an item buyable, create it on the [Creator Dashboard](https://create.roblox.com/dashboard/creations) (your experience, then Monetization, then Passes or Developer Products), and paste its id into `Id`. Items with `Id = 0` show "Coming soon". Working now: 2x Luck and VIP (passes) and the two coin packs (products). Auto-Launch and Extra Pedestals are listed but not built yet.
 
+The Shop shows a **Featured** section (big cards for items with `Featured = true`; the 2x Luck card has tiles showing how much more likely each rarity gets), then **Passes** and **Coins**. Coin packs have **Buy 1** and **Buy 3** buttons: for Buy 3, make a second developer product that gives three packs and paste its id into `Id3` (and its price into `Price3`). `Tag = "BEST VALUE"` (or any short text) puts a ribbon on a card's corner.
+
 ## Saving in Studio
 
 Progress is saved with DataStores. To test saving in Studio, turn on **Game Settings > Security > Enable Studio Access to API Services** (the place must be published). Without it the game still runs, it just starts fresh each time.

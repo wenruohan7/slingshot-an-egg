@@ -38,6 +38,24 @@ function Format.number(n: number): string
 	return sign .. trimZeros(string.format(digits, n)) .. SUFFIXES[index]
 end
 
+-- A whole number with commas, e.g. "159,201". Past a trillion it switches to the
+-- short form ("3.4Qa"), since long digit strings get hard to read.
+function Format.commas(n: number): string
+	if n ~= n or n == math.huge then
+		return "∞"
+	end
+	if math.abs(n) >= 1e12 then
+		return Format.number(n)
+	end
+	local text = tostring(math.floor(math.abs(n) + 0.5))
+	local result = ""
+	while #text > 3 do
+		result = "," .. string.sub(text, -3) .. result
+		text = string.sub(text, 1, -4)
+	end
+	return (if n < 0 then "-" else "") .. text .. result
+end
+
 -- Whole coins, e.g. "12.5K".
 function Format.coins(n: number): string
 	return Format.number(math.floor(n))

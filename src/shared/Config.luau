@@ -66,8 +66,19 @@ Config.Hatching = {
 	NearLineChance = 0.25,
 	ShowBeamFromRarity = 4, -- Epic and up get a light beam everyone can see
 	ShowBeamFromMutation = 3, -- and so do Rainbow, Blocky, Galaxy and Divine pets
-	RevealSeconds = 3.5, -- how long a normal hatch keeps the egg on the lane
-	BigRevealSeconds = 5.5, -- the longer show for pets that get a light beam
+	RevealSeconds = 4, -- how long a normal hatch keeps the egg on the lane
+	BigRevealSeconds = 7, -- the longer show for pets that get a light beam
+	-- The reveal: after the crack, a "1 in N" number climbs to the real odds while
+	-- the pet's name fills in letter by letter. Rarer pets climb for longer:
+	-- RollSecondsPerDigit for each digit of N, up to MaxRollSeconds.
+	RollSecondsPerDigit = 0.4,
+	MaxRollSeconds = 2.4,
+	-- Banners that pop up as the number climbs past each value.
+	LuckBanners = {
+		{ From = 100, Text = "LUCKY!", Color = Color3.fromRGB(120, 230, 120) },
+		{ From = 10000, Text = "INSANE LUCK!", Color = Color3.fromRGB(110, 220, 255) },
+		{ From = 1000000, Text = "IMPOSSIBLE LUCK!", Color = Color3.fromRGB(255, 120, 230) },
+	},
 	BuildSeconds = 2.6, -- glow-and-spin build before a beam pet cracks out
 }
 
@@ -186,17 +197,24 @@ Config.Slingshot = {
 -- id here. Items with Id = 0 show as "Coming soon". Price is only the label;
 -- Roblox charges what the Dashboard says, so keep them the same.
 -- Effect is what the game does with it (see MonetizationService).
+--
+-- How the Shop shows them:
+-- Featured = true puts the item in a big card at the top. Tiles = "Luck" fills
+-- that card with how much more likely each rarity gets (from LuckPassMultiplier).
+-- Tag puts a small ribbon on the card's corner, e.g. "BEST VALUE" or "LIMITED".
+-- Coin packs can have a second "Buy 3" button: make another developer product
+-- that gives 3 packs at once, and set Id3 and Price3 (Id3 = 0 shows "Coming soon").
 Config.RobuxShop = {
 	Passes = {
-		{ Key = "Luck2x", Name = "2x Luck", Text = "Double the Luck of every egg, forever", Icon = "🍀", Price = 249, Id = 0 },
+		{ Key = "Luck2x", Name = "2x Luck", Text = "Double the Luck of every egg, forever!", Icon = "🍀", Price = 249, Id = 0, Featured = true, Tiles = "Luck" },
 		{ Key = "VIP", Name = "VIP", Text = "1.5x coins, forever", Icon = "👑", Price = 399, Id = 0 },
 		{ Key = "AutoLaunch", Name = "Auto-Launch", Text = "Launches for you (coming in a later update)", Icon = "🔁", Price = 199, Id = 0 },
 		{ Key = "ExtraPedestals", Name = "Extra Pedestals", Text = "+4 pet slots (coming in a later update)", Icon = "🏛️", Price = 149, Id = 0 },
 	},
 	Products = {
 		-- Coin packs give this many seconds of your current income at once.
-		{ Key = "CoinsSmall", Name = "Bag of Coins", Text = "30 minutes of coins", Icon = "💰", Price = 25, Id = 0, IncomeSeconds = 1800 },
-		{ Key = "CoinsBig", Name = "Chest of Coins", Text = "6 hours of coins", Icon = "💎", Price = 199, Id = 0, IncomeSeconds = 21600 },
+		{ Key = "CoinsSmall", Name = "Bag of Coins", Text = "30 minutes of coins", Icon = "💰", Price = 25, Id = 0, IncomeSeconds = 1800, Price3 = 65, Id3 = 0 },
+		{ Key = "CoinsBig", Name = "Chest of Coins", Text = "6 hours of coins", Icon = "💎", Price = 199, Id = 0, IncomeSeconds = 21600, Price3 = 499, Id3 = 0, Tag = "BEST VALUE" },
 	},
 	VipCoinMultiplier = 1.5,
 	LuckPassMultiplier = 2,
