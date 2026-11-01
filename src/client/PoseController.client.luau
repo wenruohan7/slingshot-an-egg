@@ -31,17 +31,22 @@ local LEAN_BACK = math.rad(10) -- at full pull
 local LEAN_FORWARD = math.rad(14) -- the lunge on release
 local LUNGE_TIME = 0.45
 local RELEASE_TIME = 0.8 -- the pose has faded out by then
+-- The follow-through spin after the shot (like the throw in Tmuk's reference):
+-- the whole body whips round once, fast at first and settling at the end.
+local SPIN_DELAY = 0.1 -- seconds after letting go (past a Perfect's freeze)
+local SPIN_TIME = 0.55
 
 type Pose = {
 	weight: number, -- 0 = normal animations, 1 = fully posed
 	band: number, -- how far back the band is (below 0 overshoots forward)
 	lean: number, -- radians, + is back
+	spin: number, -- radians the whole body has turned (release only)
 }
 
 -- The pose for this point in a charge (held = seconds held).
 local function chargingPose(held: number): Pose
 	local pull = Charge.valueAt(held)
-	return { weight = math.min(held / BLEND_IN, 1), band = SlingshotModel.drawFor(pull), lean = LEAN_BACK * pull }
+	return { weight = math.min(held / BLEND_IN, 1), band = SlingshotModel.drawFor(pull), lean = LEAN_BACK * pull, spin = 0 }
 end
 
 -- The pose `since` seconds after letting go at `pull`, or nil once it's over.
@@ -50,7 +55,10 @@ local function releasePose(since: number, pull: number): Pose?
 		return nil
 	end
 	local lunge = math.sin(math.pi * math.min(since / LUNGE_TIME, 1))
+	local spinT = math.clamp((since - SPIN_DELAY) / SPIN_TIME, 0, 1)
+	local spin = if Config.Charge.ReleaseSpin then math.pi * 2 * (1 - (1 - spinT) ^ 3) else 0
 	return {
+		spin = spin,
 		weight = if since < LUNGE_TIME then 1 else 1 - (since - LUNGE_TIME) / (RELEASE_TIME - LUNGE_TIME),
 		band = pull * math.exp(-7 * since) * math.cos(20 * since),
 		lean = LEAN_BACK * pull * math.exp(-12 * since) - LEAN_FORWARD * lunge,
@@ -86,7 +94,7 @@ local function motor(parent: Instance?, name: string): Motor6D?
 	return if found and found:IsA("Motor6D") then found else nil
 end
 
-type Joints = { shoulder: Motor6D?, elbow: Motor6D?, waist: Motor6D? }
+type Joints = { shoulder: Motor6D?, elbow: Motor6D?, waist: Motor6D?, root: Motor6D? }
 
 local function jointsOf(character: Model): Joints
 	local torso = character:FindFirstChild("Torso")
@@ -95,12 +103,14 @@ local function jointsOf(character: Model): Joints
 			shoulder = motor(torso, "Left Shoulder"),
 			elbow = nil,
 			waist = motor(character:FindFirstChild("HumanoidRootPart"), "RootJoint"),
+			root = motor(character:FindFirstChild("HumanoidRootPart"), "RootJoint"),
 		}
 	end
 	return {
 		shoulder = motor(character:FindFirstChild("LeftUpperArm"), "LeftShoulder"),
 		elbow = motor(character:FindFirstChild("LeftLowerArm"), "LeftElbow"),
 		waist = motor(character:FindFirstChild("UpperTorso"), "Waist"),
+		root = motor(character:FindFirstChild("LowerTorso"), "Root"),
 	}
 end
 
@@ -160,6 +170,30 @@ local function applyPose(character: Model, pose: Pose, tool: Tool?)
 	end
 	-- Keep the arm straight so the hand reaches as far as it can.
 	blend(joints.elbow, CFrame.identity, w)
+end
+
+-- Turns the whole body around the up axis by turning the root joint's C0 (its
+-- Transform is the animations' to set). The original C0 is kept and put back.
+local originalC0: { [Motor6D]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+
+local function applySpin(character: Model, spin: number)
+	local root = jointsOf(character).root
+	if not root then
+		return
+	end
+	local base = originalC0[root]
+	if spin <= 0 or spin >= math.pi * 2 - 1e-3 then
+		if base then
+			root.C0 = base
+			originalC0[root] = nil
+		end
+		return
+	end
+	if not base then
+		base = root.C0
+		originalC0[root] = base
+	end
+	root.C0 = CFrame.Angles(0, spin, 0) * base
 end
 
 -- Puts the joints back once a pose ends, in case no animation resets them.
@@ -302,12 +336,14 @@ RunService.PreSimulation:Connect(function()
 			if not animated then
 				applyPose(character, pose, slingshot)
 			end
+			applySpin(character, pose.spin)
 			-- Your own band is driven by ChargeController; other players' bands here.
 			if slingshot and not isLocal then
 				SlingshotModel.setPull(slingshot, pose.band)
 			end
 		elseif posed[character] then
 			posed[character] = nil
+			applySpin(character, 0)
 			if not animated then
 				clearPose(character)
 			end

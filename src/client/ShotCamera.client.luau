@@ -21,6 +21,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
 local Config = require(Shared.Config)
 local Charge = require(Shared.Charge)
+local Remotes = require(Shared.Remotes)
 local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
 
 local player = Players.LocalPlayer
@@ -35,10 +36,31 @@ local NORMAL_FOV = 70
 local FULL_DRAW_FOV = 58
 local BLEND_IN = 0.22 -- seconds to get into the shot camera
 local BLEND_OUT = 0.45 -- and back out after the release
-local HOLD_AFTER_RELEASE = 0.12 -- stays on the shot a moment after letting go
+local HOLD_AFTER_RELEASE = 0.5 -- stays on the shot through the follow-through spin
 
 local PERFECT = Config.Charge.Stages[1].Name
 local AMAZING = Config.Charge.Stages[2].Name
+
+-- Chase camera (like Tmuk's reference): once the shot camera lets go, the view
+-- rides low behind your egg as it flies down the lane, then looks down at it
+-- from behind while it hatches.
+local CHASE_BEHIND = Vector3.new(-20, 6, 0) -- from the egg, while flying (+X is down the lane)
+local CHASE_LOOK = Vector3.new(40, -4, 0)
+local LANDED_BEHIND = Vector3.new(-17, 10, 0) -- once it lands
+local CHASE_BLEND = 0.35
+local chaseEgg: BasePart? = nil
+local chaseLanded = false
+local chaseWeight = 0
+local chaseFrame: CFrame? = nil
+
+Remotes.EggLaunched.OnClientEvent:Connect(function(egg: BasePart?)
+	chaseEgg = egg
+	chaseLanded = false
+	chaseFrame = nil
+end)
+Remotes.EggLanded.OnClientEvent:Connect(function()
+	chaseLanded = true
+end)
 
 local weight = 0 -- 0 = the normal camera, 1 = the shot camera
 local lastRelease = LocalCharge.releasedAt
@@ -240,6 +262,27 @@ RunService:BindToRenderStep("ShotCamera", Enum.RenderPriority.Camera.Value + 1, 
 
 	-- A little tremble while the string is drawn near the top.
 	local tremble = if LocalCharge.charging then math.max(meter - 0.8, 0) * 0.25 else 0
+
+	-- Chase camera underneath the shot camera.
+	local egg = chaseEgg
+	local chasing = egg ~= nil and egg:IsDescendantOf(workspace)
+	chaseWeight = if chasing
+		then math.min(chaseWeight + dt / CHASE_BLEND, 1)
+		else math.max(chaseWeight - dt / CHASE_BLEND, 0)
+	if chasing and egg then
+		local at = egg.Position
+		local goal = if chaseLanded
+			then CFrame.lookAt(at + LANDED_BEHIND, at)
+			else CFrame.lookAt(at + CHASE_BEHIND, at + CHASE_LOOK)
+		-- Smoothed, so the egg's bounces don't shake the view.
+		chaseFrame = if chaseFrame then chaseFrame:Lerp(goal, 1 - math.exp(-dt * 10)) else goal
+	elseif not chasing and chaseWeight <= 0 then
+		chaseFrame = nil
+	end
+	if chaseFrame and chaseWeight > 0 then
+		local c = chaseWeight * chaseWeight * (3 - 2 * chaseWeight)
+		camera.CFrame = camera.CFrame:Lerp(chaseFrame, c)
+	end
 
 	if frozenAt then
 		camera.CFrame = frozenAt

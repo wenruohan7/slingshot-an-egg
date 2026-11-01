@@ -104,19 +104,29 @@ corner(button, UDim.new(1, 0))
 local buttonScale = Instance.new("UIScale")
 buttonScale.Parent = button
 
--- Vertical meter on the right: a framed bar whose colours blend from Poor at
--- the bottom to Perfect at the top, with faint lines where the stages meet.
+-- The meter (like Tmuk's reference): a tall rounded tube of chunky cells, red
+-- at the bottom through orange and yellow to green at the top, with a white
+-- needle sliding up and down it. The top cells are the Perfect band.
+local METER_CELLS = 12
+local CELL_GAP = 3
+local CELL_COLORS = {
+	Color3.fromRGB(235, 55, 50), -- bottom
+	Color3.fromRGB(255, 140, 40),
+	Color3.fromRGB(255, 220, 60),
+	Color3.fromRGB(110, 225, 70), -- top
+}
+
 local meter = Instance.new("Frame")
 meter.Name = "Meter"
 meter.AnchorPoint = Vector2.new(1, 0.5)
-meter.Position = UDim2.new(1, -220, 0.5, 0)
-meter.Size = UDim2.fromOffset(60, 330)
-meter.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+meter.Position = UDim2.new(1, -230, 0.42, 0)
+meter.Size = UDim2.fromOffset(50, 330)
+meter.BackgroundColor3 = Color3.fromRGB(25, 22, 35)
 meter.Visible = false
 meter.Parent = gui
-corner(meter, UDim.new(0, 18))
+corner(meter, UDim.new(1, 0))
 local frameStroke = Instance.new("UIStroke")
-frameStroke.Color = Color3.new(1, 1, 1)
+frameStroke.Color = Color3.fromRGB(20, 18, 28)
 frameStroke.Thickness = 4
 frameStroke.Parent = meter
 
@@ -124,14 +134,9 @@ local bar = Instance.new("Frame")
 bar.Name = "Bar"
 bar.AnchorPoint = Vector2.new(0.5, 0.5)
 bar.Position = UDim2.fromScale(0.5, 0.5)
-bar.Size = UDim2.new(1, -18, 1, -18)
-bar.BackgroundColor3 = Color3.new(1, 1, 1)
+bar.Size = UDim2.new(1, -12, 1, -14)
+bar.BackgroundTransparency = 1
 bar.Parent = meter
-corner(bar, UDim.new(0, 10))
-local barStroke = Instance.new("UIStroke")
-barStroke.Color = Color3.fromRGB(20, 20, 30)
-barStroke.Thickness = 2
-barStroke.Parent = bar
 
 -- On phones, keep the button and meter clear of the jump button, which sits
 -- within about 230 px of the bottom-right corner in every layout.
@@ -143,46 +148,48 @@ end
 
 local stages = Config.Charge.Stages
 
--- Each stage's colour sits at the middle of its band, and the gradient blends between them.
-local keypoints = { ColorSequenceKeypoint.new(0, stages[#stages].Color) }
-for i = #stages, 1, -1 do
-	local stage = stages[i]
-	local top = if i == 1 then 1 else stages[i - 1].Min
-	table.insert(keypoints, ColorSequenceKeypoint.new((stage.Min + top) / 2, stage.Color))
-	if stage.Min > 0 then
-		-- A dark gap between stages makes the bar read as chunky blocks.
-		local line = Instance.new("Frame")
-		line.Name = stage.Name .. "Line"
-		line.AnchorPoint = Vector2.new(0, 0.5)
-		line.Position = UDim2.fromScale(0, 1 - stage.Min)
-		line.Size = UDim2.new(1, 0, 0, 4)
-		line.BorderSizePixel = 0
-		line.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-		line.Parent = bar
-	end
+local function cellColor(t: number): Color3
+	local scaled = t * (#CELL_COLORS - 1)
+	local i = math.clamp(math.floor(scaled) + 1, 1, #CELL_COLORS - 1)
+	return CELL_COLORS[i]:Lerp(CELL_COLORS[i + 1], scaled - (i - 1))
 end
+
+for i = 1, METER_CELLS do
+	local t = (i - 1) / (METER_CELLS - 1) -- 0 bottom, 1 top
+	local cell = Instance.new("Frame")
+	cell.Name = "Cell" .. i
+	cell.AnchorPoint = Vector2.new(0.5, 1)
+	cell.Position = UDim2.new(0.5, 0, 1 - (i - 1) / METER_CELLS, 0)
+	cell.Size = UDim2.new(1, 0, 1 / METER_CELLS, -CELL_GAP)
+	cell.BorderSizePixel = 0
+	cell.BackgroundColor3 = cellColor(t)
+	cell.Parent = bar
+	corner(cell, UDim.new(0, if i == 1 or i == METER_CELLS then 12 else 4))
+	-- A lighter top edge on each cell, so they look like little blocks.
+	local light = Instance.new("UIGradient")
+	light.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 200))
+	light.Rotation = 90
+	light.Parent = cell
+end
+
 -- A light shine down the left side, like a glass tube.
 local shine = Instance.new("Frame")
 shine.Name = "Shine"
-shine.Position = UDim2.new(0, 5, 0, 6)
-shine.Size = UDim2.new(0, 7, 1, -12)
+shine.Position = UDim2.new(0, 4, 0, 8)
+shine.Size = UDim2.new(0, 6, 1, -16)
 shine.BorderSizePixel = 0
 shine.BackgroundColor3 = Color3.new(1, 1, 1)
-shine.BackgroundTransparency = 0.55
+shine.BackgroundTransparency = 0.6
+shine.ZIndex = 2
 shine.Parent = bar
 corner(shine, UDim.new(1, 0))
-table.insert(keypoints, ColorSequenceKeypoint.new(1, stages[1].Color))
-local gradient = Instance.new("UIGradient")
-gradient.Color = ColorSequence.new(keypoints)
-gradient.Rotation = -90 -- 0 at the bottom, 1 at the top, like the needle
-gradient.Parent = bar
 
 local needle = Instance.new("Frame")
 needle.Name = "Needle"
 needle.AnchorPoint = Vector2.new(0.5, 0.5)
-needle.Size = UDim2.new(1, 22, 0, 10)
+needle.Size = UDim2.new(1, 26, 0, 12)
 needle.BackgroundColor3 = Color3.new(1, 1, 1)
-needle.ZIndex = 2
+needle.ZIndex = 3
 needle.Parent = bar
 local needleStroke = Instance.new("UIStroke")
 needleStroke.Color = Color3.fromRGB(20, 20, 30)
@@ -194,10 +201,10 @@ corner(needle, UDim.new(1, 0))
 -- egg would fly), so it climbs as you buy better bows.
 local needleTag = label({
 	Name = "PowerTag",
-	AnchorPoint = Vector2.new(1, 0.5),
+	AnchorPoint = if UserInputService.TouchEnabled then Vector2.new(1, 0.5) else Vector2.new(0, 0.5),
 	Position = UDim2.new(0, -10, 0.5, 0),
 	Size = UDim2.fromOffset(110, 34),
-	TextXAlignment = Enum.TextXAlignment.Right,
+	TextXAlignment = if UserInputService.TouchEnabled then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 	TextStrokeTransparency = 1,
 	ZIndex = 3,
 	Parent = meter,
@@ -220,6 +227,57 @@ local meterHintStroke = Instance.new("UIStroke")
 meterHintStroke.Color = Color3.fromRGB(20, 20, 30)
 meterHintStroke.Thickness = 3
 meterHintStroke.Parent = meterHint
+-- "x100 LUCK" badge in the top right while you aim: your egg's Luck.
+local luckBadge = Instance.new("Frame")
+luckBadge.Name = "LuckBadge"
+luckBadge.AnchorPoint = Vector2.new(1, 0)
+luckBadge.Position = UDim2.new(1, -24, 0, 70)
+luckBadge.Size = UDim2.fromOffset(190, 52)
+luckBadge.BackgroundColor3 = Color3.new(1, 1, 1)
+luckBadge.Visible = false
+luckBadge.Parent = gui
+corner(luckBadge, UDim.new(1, 0))
+local badgeStroke = Instance.new("UIStroke")
+badgeStroke.Color = Color3.fromRGB(20, 18, 28)
+badgeStroke.Thickness = 3
+badgeStroke.Parent = luckBadge
+local badgeFill = Instance.new("UIGradient")
+badgeFill.Color = ColorSequence.new(Color3.fromRGB(200, 120, 255), Color3.fromRGB(130, 70, 220))
+badgeFill.Rotation = 90
+badgeFill.Parent = luckBadge
+local clover = Instance.new("Frame")
+clover.Name = "Clover"
+clover.AnchorPoint = Vector2.new(0.5, 0.5)
+clover.Position = UDim2.new(0, 20, 0.5, 0)
+clover.Size = UDim2.fromOffset(50, 50)
+clover.BackgroundTransparency = 1
+clover.Rotation = 45
+clover.Parent = luckBadge
+for _, offset in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
+	local leaf = Instance.new("Frame")
+	leaf.Position = UDim2.fromScale(offset.X * 0.48 + 0.02, offset.Y * 0.48 + 0.02)
+	leaf.Size = UDim2.fromScale(0.48, 0.48)
+	leaf.BackgroundColor3 = Color3.fromRGB(80, 210, 80)
+	leaf.Parent = clover
+	corner(leaf, UDim.new(1, 0))
+	local leafStroke = Instance.new("UIStroke")
+	leafStroke.Color = Color3.fromRGB(20, 80, 25)
+	leafStroke.Thickness = 2.5
+	leafStroke.Parent = leaf
+end
+local luckBadgeText = label({
+	Position = UDim2.fromOffset(52, 8),
+	Size = UDim2.new(1, -64, 1, -16),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextStrokeTransparency = 1,
+	Text = "x1 LUCK",
+	Parent = luckBadge,
+})
+local luckBadgeStroke = Instance.new("UIStroke")
+luckBadgeStroke.Color = Color3.fromRGB(20, 18, 28)
+luckBadgeStroke.Thickness = 2.5
+luckBadgeStroke.Parent = luckBadgeText
+
 local leaveHint = label({
 	Name = "LeaveHint",
 	AnchorPoint = Vector2.new(0.5, 0),
@@ -610,6 +668,9 @@ local function startCharge(input: InputObject?, auto: boolean?)
 	charging = true
 	autoCharge = auto == true
 	meterHint.Text = if autoCharge then "TAP TO SHOOT!" else "LET GO TO SHOOT!"
+	meterHint.TextColor3 = Color3.new(1, 1, 1)
+	luckBadgeText.Text = `x{Format.number(eggLuck())} LUCK`
+	luckBadge.Visible = true
 	leaveHint.Visible = autoCharge
 	button.Text = if autoCharge then "🥚\nTAP!" else "🥚\nHOLD"
 	chargeInput = input
@@ -639,6 +700,10 @@ local function releaseCharge()
 	local releaseValue = Charge.valueAt(os.clock() - chargeStart)
 	local stage = Charge.stageFor(releaseValue).Name
 	powerPop(powerAt(releaseValue), Charge.stageFor(releaseValue).Color)
+	-- The stage word under the meter, like "PERFECT!", while it fades out.
+	meterHint.Text = string.upper(stage) .. "!"
+	meterHint.TextColor3 = Charge.stageFor(releaseValue).Color
+	leaveHint.Visible = false
 	LocalCharge.charging = false
 	LocalCharge.releaseStage = stage
 	LocalCharge.releasePull = pull.Value
@@ -650,9 +715,10 @@ local function releaseCharge()
 	snapTween = tween
 	tween:Play()
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	task.delay(0.4, function()
+	task.delay(0.7, function()
 		if not charging then
 			meter.Visible = false
+			luckBadge.Visible = false
 		end
 	end)
 end
@@ -675,6 +741,7 @@ local function cancelCharge()
 	tween:Play()
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	meter.Visible = false
+	luckBadge.Visible = false
 end
 
 UserInputService.JumpRequest:Connect(function()
@@ -784,10 +851,10 @@ RunService.RenderStepped:Connect(function()
 	if charging then
 		local value = Charge.valueAt(os.clock() - chargeStart)
 		needle.Position = UDim2.fromScale(0.5, 1 - value)
-		needle.BackgroundColor3 = Charge.stageFor(value).Color
-		needleTag.Position = UDim2.new(0, -10, 1 - value, 0)
+		needleTag.Position = if UserInputService.TouchEnabled
+			then UDim2.new(0, -10, 1 - value, 0)
+			else UDim2.new(1, 12, 1 - value, 0)
 		needleTag.Text = `+{Format.number(powerAt(value))}`
-		needleTag.TextColor3 = Charge.stageFor(value).Color
 		pull.Value = SlingshotModel.drawFor(value)
 	end
 	-- Clear the screen while aiming and while the egg flies: the menu buttons

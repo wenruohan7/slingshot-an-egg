@@ -169,6 +169,8 @@ Config.Charge = {
 	-- On a Perfect the whole shot freezes for this long on the release, with
 	-- impact frames (flashes and burst lines), before the egg flies off.
 	PerfectFreeze = 0.14,
+	-- After the shot, the player whips round in a full spin (PoseController).
+	ReleaseSpin = true,
 }
 
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
