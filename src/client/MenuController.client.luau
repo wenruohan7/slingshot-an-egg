@@ -252,7 +252,7 @@ local function currentHint(): string?
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root and root:IsA("BasePart") and Lane.isOnLaunchSpot(root.Position) then
-			return "Hold the button to shoot your egg!"
+			return "Tap when the needle is at the top!"
 		end
 		return "Walk to the SHOOT HERE spot at the front!"
 	end

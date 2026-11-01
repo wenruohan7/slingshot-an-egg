@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local NAMES = {
 	"ChargeStart", -- client -> server: player pressed the launch button
 	"ChargeRelease", -- client -> server: player let go
+	"ChargeCancel", -- client -> server: player stepped out of the draw without shooting
 	"EggLaunched", -- server -> client: (egg, stageName) the egg is in the air
 	"EggLanded", -- server -> client: (zoneIndex, stageName, distance)
 	"EggHatched", -- server -> client: (egg, pet, merged, kept, isNew, odds) what came out of your egg; odds is the N in "1 in N"

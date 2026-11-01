@@ -1,6 +1,7 @@
 --!strict
--- Launch controls: while the slingshot is in hand and you're in the hub, hold the
--- big launch button (or click and hold, or the E key on PC). Also draws the
+-- Launch controls: step onto the shooting spot and the draw starts by itself;
+-- tap anywhere (or click, or E) to shoot, or jump to step away. Holding the big
+-- launch button (or the E key) and letting go works too. Also draws the
 -- bouncing charge meter, the slingshot band pulling back and snapping,
 -- the stage word that pops up on release (with a ring burst for the best ones),
 -- a camera that follows the egg, and a banner naming the zone it lands in.
@@ -219,6 +220,21 @@ local meterHintStroke = Instance.new("UIStroke")
 meterHintStroke.Color = Color3.fromRGB(20, 20, 30)
 meterHintStroke.Thickness = 3
 meterHintStroke.Parent = meterHint
+local leaveHint = label({
+	Name = "LeaveHint",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 1, 44),
+	Size = UDim2.fromOffset(200, 22),
+	Text = "Jump to step away",
+	TextColor3 = Color3.fromRGB(225, 225, 235),
+	TextStrokeTransparency = 1,
+	Visible = false,
+	Parent = meter,
+})
+local leaveHintStroke = Instance.new("UIStroke")
+leaveHintStroke.Color = Color3.fromRGB(20, 20, 30)
+leaveHintStroke.Thickness = 2
+leaveHintStroke.Parent = leaveHint
 
 -- "+342 POWER" floats up from the meter when you let go.
 local function powerPop(amount: number, color: Color3)
@@ -579,13 +595,25 @@ local function eggInAir(): boolean
 	return flying or player:GetAttribute("EggInFlight") == true or os.clock() - lastRelease < RELEASE_LOCK
 end
 
-local function startCharge(input: InputObject?)
+-- Auto charge: stepping onto the shooting spot starts the draw by itself, and
+-- any tap (or click, or E) shoots. Jumping steps away without shooting, and
+-- the draw won't start again until you've walked off the spot and back on.
+local AUTO_DELAY = 0.35 -- seconds on the spot before the draw starts
+local autoCharge = false -- the current draw was started by the spot
+local autoBlocked = false -- jumped out of a draw: wait until off the spot
+local onSpotSince: number? = nil
+
+local function startCharge(input: InputObject?, auto: boolean?)
 	if charging or eggInAir() or not canLaunch() then
 		return
 	end
 	charging = true
+	autoCharge = auto == true
+	meterHint.Text = if autoCharge then "TAP TO SHOOT!" else "LET GO TO SHOOT!"
+	leaveHint.Visible = autoCharge
+	button.Text = if autoCharge then "🥚\nTAP!" else "🥚\nHOLD"
 	chargeInput = input
-	chargedByTool = input == nil
+	chargedByTool = input == nil and not autoCharge
 	chargeStart = os.clock()
 	LocalCharge.charging = true
 	LocalCharge.startedAt = chargeStart
@@ -604,6 +632,7 @@ local function releaseCharge()
 		return
 	end
 	charging = false
+	autoCharge = false
 	lastRelease = os.clock()
 	chargeInput = nil
 	chargedByTool = false
@@ -628,6 +657,32 @@ local function releaseCharge()
 	end)
 end
 
+-- Steps out of the draw without shooting (jumping off the spot).
+local function cancelCharge()
+	if not charging then
+		return
+	end
+	charging = false
+	autoCharge = false
+	autoBlocked = true
+	chargeInput = nil
+	chargedByTool = false
+	LocalCharge.charging = false
+	Remotes.ChargeCancel:FireServer()
+	unlockPlayer()
+	local tween = TweenService:Create(pull, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = 0 })
+	snapTween = tween
+	tween:Play()
+	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	meter.Visible = false
+end
+
+UserInputService.JumpRequest:Connect(function()
+	if charging and autoCharge then
+		cancelCharge()
+	end
+end)
+
 local function isPress(input: InputObject): boolean
 	return input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch
@@ -635,12 +690,24 @@ end
 
 button.InputBegan:Connect(function(input)
 	if isPress(input) then
-		startCharge(input)
+		if charging and autoCharge then
+			releaseCharge()
+		else
+			startCharge(input)
+		end
 	end
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == LAUNCH_KEY then
+	if processed then
+		return
+	end
+	if charging and autoCharge then
+		-- Tap anywhere to shoot.
+		if isPress(input) or input.KeyCode == LAUNCH_KEY then
+			releaseCharge()
+		end
+	elseif input.KeyCode == LAUNCH_KEY then
 		startCharge(input)
 	end
 end)
@@ -649,7 +716,7 @@ end)
 -- launches. On touch screens only the finger that started the charge counts, so
 -- moving or jumping with another finger doesn't fire the egg.
 UserInputService.InputEnded:Connect(function(input: InputObject)
-	if not charging or chargedByTool then
+	if not charging or chargedByTool or autoCharge then
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.Touch then
@@ -668,7 +735,11 @@ local function hookTool(tool: Tool?)
 	end
 	hookedTool = tool
 	tool.Activated:Connect(function()
-		startCharge(nil)
+		if charging and autoCharge then
+			releaseCharge()
+		else
+			startCharge(nil)
+		end
 	end)
 	tool.Deactivated:Connect(function()
 		if chargedByTool then
@@ -682,8 +753,33 @@ RunService.RenderStepped:Connect(function()
 	local ready = canLaunch()
 	button.Visible = (charging or not eggInAir()) and ready
 	if charging and not ready then
-		-- Put away or walked off the hub mid-charge: let go.
-		releaseCharge()
+		-- Bow gone or off the spot mid-draw: a spot-started draw just stops,
+		-- a held one lets go.
+		if autoCharge then
+			cancelCharge()
+		else
+			releaseCharge()
+		end
+	end
+	-- Auto charge on the spot.
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local onSpot = root ~= nil and root:IsA("BasePart") and Lane.isOnLaunchSpot(root.Position)
+	if not onSpot then
+		onSpotSince = nil
+		autoBlocked = false
+	elseif onSpotSince == nil then
+		onSpotSince = os.clock()
+	end
+	if
+		ready
+		and not charging
+		and not autoBlocked
+		and not eggInAir()
+		and onSpotSince ~= nil
+		and os.clock() - onSpotSince >= AUTO_DELAY
+	then
+		startCharge(nil, true)
 	end
 	if charging then
 		local value = Charge.valueAt(os.clock() - chargeStart)

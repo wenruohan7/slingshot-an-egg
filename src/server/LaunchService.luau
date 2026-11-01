@@ -152,6 +152,15 @@ local function onChargeStart(player: Player)
 	showCharge(player, true)
 end
 
+-- Stepping out of a draw (jumping off the shooting spot): no shot.
+local function onChargeCancel(player: Player)
+	chargeStarted[player] = nil
+	local character = player.Character
+	if character then
+		character:SetAttribute("ChargeStartedAt", nil)
+	end
+end
+
 local function onChargeRelease(player: Player)
 	local started = chargeStarted[player]
 	chargeStarted[player] = nil
@@ -256,6 +265,7 @@ end
 function LaunchService.init()
 	Remotes.ChargeStart.OnServerEvent:Connect(onChargeStart)
 	Remotes.ChargeRelease.OnServerEvent:Connect(onChargeRelease)
+	Remotes.ChargeCancel.OnServerEvent:Connect(onChargeCancel)
 	Players.PlayerRemoving:Connect(function(player)
 		chargeStarted[player] = nil
 		inFlight[player] = nil
