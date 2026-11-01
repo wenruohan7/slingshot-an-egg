@@ -40,8 +40,8 @@ local function setInFlight(player: Player, flying: boolean)
 	player:SetAttribute("EggInFlight", if flying then true else nil)
 end
 
--- The player's root part, if they are alive, holding the slingshot, standing in
--- the hub and their data has loaded.
+-- The player's root part, if they are alive, holding the bow, standing on the
+-- shooting spot and their data has loaded.
 local function launchingRoot(player: Player): BasePart?
 	local character = player.Character
 	local tool = character and character:FindFirstChild(SlingshotModel.NAME)
@@ -54,7 +54,7 @@ local function launchingRoot(player: Player): BasePart?
 		and humanoid.Health > 0
 		and root
 		and root:IsA("BasePart")
-		and Lane.isInHub(root.Position)
+		and Lane.isOnLaunchSpot(root.Position)
 		and DataService.get(player)
 	then
 		return root

@@ -27,6 +27,19 @@ local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
+-- No inventory bar: the bow comes out by itself on the shooting spot
+-- (SlingshotService), and there is nothing else to hold.
+task.spawn(function()
+	local StarterGui = game:GetService("StarterGui")
+	for _ = 1, 20 do
+		local ok = pcall(StarterGui.SetCoreGuiEnabled, StarterGui, Enum.CoreGuiType.Backpack, false)
+		if ok then
+			return
+		end
+		task.wait(0.5)
+	end
+end)
+
 local FONT = Enum.Font.FredokaOne
 local LAUNCH_KEY = Enum.KeyCode.E
 
@@ -519,7 +532,7 @@ local function canLaunch(): boolean
 		and humanoid.Health > 0
 		and root ~= nil
 		and root:IsA("BasePart")
-		and Lane.isInHub(root.Position)
+		and Lane.isOnLaunchSpot(root.Position)
 end
 
 -- Turns the character to face down the lane (where the egg flies) and holds

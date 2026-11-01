@@ -14,6 +14,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
+local Lane = require(Shared.Lane)
 local EggModel = require(Shared.EggModel)
 local PetModel = require(Shared.PetModel)
 local Pets = require(Shared.Pets)
@@ -248,7 +249,12 @@ local function currentHint(): string?
 		return nil
 	end
 	if attribute("PetCount") == 0 then
-		return "Hold the button to launch your egg!"
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") and Lane.isOnLaunchSpot(root.Position) then
+			return "Hold the button to shoot your egg!"
+		end
+		return "Walk to the SHOOT HERE spot at the front!"
 	end
 	local coins = attribute("Coins")
 	if coins >= Economy.rebirthCost(attribute("Rebirths")) then
@@ -813,6 +819,13 @@ for _, name in { "Coins", "SlingshotLevel", "EggLevel", "Rebirths", "Pedestals",
 	player:GetAttributeChangedSignal(name):Connect(refreshShopAndHint)
 end
 refreshShopAndHint()
+-- The first hint depends on where you stand (on the shooting spot or not).
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		updateHint()
+	end
+end)
 
 local function openShop(shop: Shops.Shop)
 	for kind, page in pages do

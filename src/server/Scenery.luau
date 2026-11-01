@@ -29,7 +29,7 @@ local function part(parent: Instance, props: { [string]: any }): Part
 	p.Anchored = true
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.SmoothPlastic
+	p.Material = Enum.Material.Plastic -- matte, not glossy
 	for key, value in props do
 		(p :: any)[key] = value
 	end
@@ -51,7 +51,7 @@ local function ball(parent: Instance, at: Vector3, diameter: number, color: Colo
 		Size = Vector3.one * diameter,
 		Position = at,
 		Color = color,
-		Material = material or Enum.Material.SmoothPlastic,
+		Material = material or Enum.Material.Plastic,
 	})
 end
 

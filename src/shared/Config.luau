@@ -174,10 +174,21 @@ Config.Charge = {
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
 -- Fixes for models imported with Studio's 3D Importer (ReplicatedStorage.BowModels).
 -- The game already fixes a bow that comes in lying on its side or turned a quarter.
--- If the bows still face the wrong way (the string in front of the bow instead of
--- toward you), set BowTurn to 180.
+-- BowTurn turns an imported bow mesh around its up axis (inside the bow, so the
+-- string stays where it is). It is 180 because Tmuk's imported bows came in facing
+-- backwards; set it back to 0 if they now face the wrong way.
+-- GripTurn turns the whole bow in the hand, string and all.
 Config.Models = {
-	BowTurn = 0, -- degrees, turning the bow around its up axis
+	BowTurn = 180, -- degrees
+	GripTurn = 0, -- degrees
+}
+
+-- The shooting spot: the striped strip at the hub's front edge, where the lane
+-- begins. The bow is only in your hand while you stand on it (it isn't in the
+-- inventory), and you can only shoot from there.
+Config.Launch = {
+	SpotFromX = -14, -- the strip runs from here to the hub's front edge (Config.Hub.MaxX)
+	SpotHalfWidth = 30, -- studs either side of the middle line
 }
 
 Config.Slingshot = {

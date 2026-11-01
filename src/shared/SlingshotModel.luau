@@ -124,6 +124,7 @@ local function customTool(custom: Instance, name: string): Tool
 	tool.Name = SlingshotModel.NAME
 	tool.CanBeDropped = false
 	tool.ToolTip = name
+	tool.Grip = tool.Grip * CFrame.Angles(0, math.rad(Config.Models.GripTurn), 0)
 	return tool
 end
 
@@ -227,7 +228,7 @@ function SlingshotModel.buildTool(level: number?): Tool
 	-- In the hand, the grip frame's -Z points where the arm points and +Y points up,
 	-- so line those up with the bow's forward (+X) and up (+Y).
 	local gripFrame = CFrame.fromMatrix(scaled(GRIP_POINT), Vector3.zAxis, Vector3.yAxis, -Vector3.xAxis)
-	tool.Grip = handle.CFrame:Inverse() * gripFrame
+	tool.Grip = handle.CFrame:Inverse() * gripFrame * CFrame.Angles(0, math.rad(Config.Models.GripTurn), 0)
 
 	-- setPull needs the handle's place in bow space to aim the welds.
 	tool:SetAttribute("HandleFrame", handle.CFrame)

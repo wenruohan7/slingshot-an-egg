@@ -1,7 +1,8 @@
 --!strict
--- The game's look: sunny afternoon light, soft shadows, a light haze for depth,
--- puffy clouds, a gentle glow on bright things and a little extra colour.
--- Aims for the bright, saturated feel of top Roblox simulators.
+-- The game's look, matched to Tmuk's reference screenshots: a purple dusk sky
+-- with a warm orange glow low down, soft light, flat matte colours (no shine or
+-- glare) and strong, saturated greens. Nothing glossy: no specular highlights,
+-- almost no bloom, no sun rays.
 -- Everything here is in Lighting (and workspace.Terrain for clouds), which
 -- replicates to every client. Tune the numbers in LOOK while playtesting.
 --
@@ -13,36 +14,39 @@ local Lighting = game:GetService("Lighting")
 local Environment = {}
 
 local LOOK = {
-	ClockTime = 14.5, -- early afternoon: sun high but not straight down, so shadows show shape
-	Latitude = 35,
-	Brightness = 3,
-	Exposure = 0.1,
-	Ambient = Color3.fromRGB(120, 120, 135), -- shade colour indoors / under things
-	OutdoorAmbient = Color3.fromRGB(150, 150, 170), -- keeps shadows light and friendly, never black
-	SunTint = Color3.fromRGB(255, 244, 222), -- warm sunlight
-	ShadowSoftness = 0.3,
+	ClockTime = 17.4, -- late afternoon going on dusk: warm low sun, purple sky
+	Latitude = 25,
+	Brightness = 2,
+	Exposure = 0,
+	Ambient = Color3.fromRGB(110, 95, 140), -- purple-ish shade
+	OutdoorAmbient = Color3.fromRGB(150, 130, 175),
+	SunTint = Color3.fromRGB(255, 205, 165), -- warm orange sunlight
+	ShadowSoftness = 0.5,
+	DiffuseScale = 0.35, -- how much the sky lights things; low keeps colours flat
+	SpecularScale = 0, -- no shiny reflections on anything
 
-	-- Haze. Kept light: the lane is 2,000 studs long and the far zones should still show.
-	AtmosphereDensity = 0.24,
-	AtmosphereOffset = 0.1,
-	AtmosphereColor = Color3.fromRGB(205, 225, 255),
-	AtmosphereDecay = Color3.fromRGB(120, 160, 220),
-	AtmosphereGlare = 0.35,
-	AtmosphereHaze = 0.9,
+	-- Purple haze that tints the sky and the far end of the lane.
+	AtmosphereDensity = 0.3,
+	AtmosphereOffset = 0.15,
+	AtmosphereColor = Color3.fromRGB(175, 120, 210),
+	AtmosphereDecay = Color3.fromRGB(110, 60, 150),
+	AtmosphereGlare = 0,
+	AtmosphereHaze = 1.6,
 
-	CloudCover = 0.55,
-	CloudDensity = 0.6,
+	CloudCover = 0.45,
+	CloudDensity = 0.45,
+	CloudColor = Color3.fromRGB(215, 175, 230), -- lavender clouds
 
-	BloomIntensity = 0.55,
-	BloomSize = 28,
-	BloomThreshold = 1.5, -- only neon and very bright things glow, not the grass
+	BloomIntensity = 0.15,
+	BloomSize = 18,
+	BloomThreshold = 2.6, -- only neon glows a little
 
-	Saturation = 0.18,
-	Contrast = 0.07,
-	BrightnessBoost = 0.02,
-	Tint = Color3.fromRGB(255, 252, 246),
+	Saturation = 0.22,
+	Contrast = 0.12,
+	BrightnessBoost = -0.02,
+	Tint = Color3.fromRGB(250, 240, 255), -- a touch of purple over everything
 
-	SunRays = 0.07,
+	SunRays = 0,
 }
 
 local function make(className: string, props: { [string]: any }): Instance
@@ -76,13 +80,13 @@ function Environment.apply()
 	Lighting.OutdoorAmbient = LOOK.OutdoorAmbient
 	Lighting.ColorShift_Top = LOOK.SunTint
 	Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
-	Lighting.EnvironmentDiffuseScale = 1
-	Lighting.EnvironmentSpecularScale = 0.4
+	Lighting.EnvironmentDiffuseScale = LOOK.DiffuseScale
+	Lighting.EnvironmentSpecularScale = LOOK.SpecularScale
 	Lighting.GlobalShadows = true
 	Lighting.ShadowSoftness = LOOK.ShadowSoftness
 	Lighting.FogEnd = 100000 -- the Atmosphere does the haze
 
-	-- Default Roblox sky textures (blue with soft clouds), with a big friendly sun.
+	-- Default sky textures; the dusk time and the purple Atmosphere colour them.
 	make("Sky", {
 		SunAngularSize = 16,
 		MoonAngularSize = 11,
@@ -122,7 +126,7 @@ function Environment.apply()
 	local clouds = terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
 	clouds.Cover = LOOK.CloudCover
 	clouds.Density = LOOK.CloudDensity
-	clouds.Color = Color3.new(1, 1, 1)
+	clouds.Color = LOOK.CloudColor
 	clouds.Parent = terrain
 end
 

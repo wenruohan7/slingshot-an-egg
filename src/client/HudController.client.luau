@@ -356,6 +356,10 @@ local ZONE_PULSE = TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirectio
 local function watchPrompt(instance: Instance)
 	if instance:IsA("ProximityPrompt") and instance:GetAttribute("Kind") == "Pedestal" then
 		instance.Enabled = instance:GetAttribute("OwnerUserId") == player.UserId
+	elseif instance:IsA("BillboardGui") and instance.Name == "LaunchArrow" then
+		-- The arrow over the shooting spot bobs up and down.
+		local bob = TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(instance, bob, { StudsOffset = instance.StudsOffset + Vector3.new(0, 2, 0) }):Play()
 	elseif instance:IsA("BasePart") and instance.Name == "Zone" and instance:GetAttribute("Kind") ~= nil then
 		-- Shop circles glow brighter and dimmer, forever.
 		TweenService:Create(instance, ZONE_PULSE, { Transparency = 0.6 }):Play()
