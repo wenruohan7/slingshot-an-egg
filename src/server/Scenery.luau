@@ -376,14 +376,21 @@ local function buildHubDecor(parent: Instance, plots: { CFrame })
 	local edge = Config.Hub.Width / 2
 
 	-- Trees in the corners and along the side walls.
-	for _, spot in { Vector2.new(-208, -98), Vector2.new(-208, 98), Vector2.new(-125, -100), Vector2.new(-125, 100), Vector2.new(-208, 0), Vector2.new(-80, -100), Vector2.new(-80, 100) } do
+	local corner = edge - 10
+	for _, spot in {
+		Vector2.new(minX + 10, -corner),
+		Vector2.new(minX + 10, corner),
+		Vector2.new(minX + 10, 0),
+		Vector2.new(-70, -corner),
+		Vector2.new(-70, corner),
+	} do
 		if hubSpotFree(spot.X, spot.Y, plots) then
 			tree(decor, Vector3.new(spot.X, 0, spot.Y), rng:NextNumber(1, 1.25))
 		end
 	end
 
 	-- A hedge of bushes along the back wall, behind the plots.
-	for z = -90, 90, 12 do
+	for z = -(edge - 8), edge - 8, 12 do
 		if math.abs(z) > 10 then
 			bush(decor, Vector3.new(minX + 5, 0, z + rng:NextNumber(-2, 2)), rng:NextNumber(0.9, 1.2))
 		end

@@ -30,8 +30,8 @@ end
 assert(#PEDESTAL_SPOTS == Config.Plot.MaxPedestals, "pedestal spots must match Config.Plot.MaxPedestals")
 
 -- The plots stand in a row across the hub, gates facing the lane (+X).
-local PLOT_X = -150
-local PLOT_SPACING = 46
+local PLOT_X = -115
+local PLOT_SPACING = 40
 local PLOT_SIZE = Vector3.new(50, 1, 34) -- X is front-to-back (gate at +X), Z is across
 
 -- Two bright lime greens for the checkered, studded hub floor.
@@ -517,7 +517,7 @@ local function buildHub(map: Folder): { CFrame }
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(12, 1, 12)
 	-- In front of the plots, facing the lane so players spawn looking down it.
-	spawn.CFrame = CFrame.lookAt(Vector3.new(-90, 0.5, 0), Vector3.new(0, 0.5, 0))
+	spawn.CFrame = CFrame.lookAt(Vector3.new(-62, 0.5, 0), Vector3.new(0, 0.5, 0))
 	spawn.Color = Color3.fromRGB(255, 255, 255)
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Neutral = true

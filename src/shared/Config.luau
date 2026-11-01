@@ -9,10 +9,10 @@ local Config = {}
 -- Players launch from anywhere on the hub floor.
 -- The front corners are cut off diagonally, narrowing into the corridor.
 Config.Hub = {
-	MinX = -220,
+	MinX = -160, -- made smaller 2026-11-01 (was -220 deep and 220 wide)
 	MaxX = 0,
-	Width = 220, -- studs, along Z
-	ChamferX = -60, -- the side walls turn in diagonally from here to the corridor
+	Width = 170, -- studs, along Z
+	ChamferX = -45, -- the side walls turn in diagonally from here to the corridor
 }
 
 -- Lane layout (Tmuk's sketch): one straight walled lane, the same width all the
