@@ -30,8 +30,8 @@ end
 assert(#PEDESTAL_SPOTS == Config.Plot.MaxPedestals, "pedestal spots must match Config.Plot.MaxPedestals")
 
 -- The plots stand in a row across the hub, gates facing the lane (+X).
-local PLOT_X = -150
-local PLOT_SPACING = 46
+local PLOT_X = -115
+local PLOT_SPACING = 40
 local PLOT_SIZE = Vector3.new(50, 1, 34) -- X is front-to-back (gate at +X), Z is across
 
 -- Two bright lime greens for the checkered, studded hub floor.
@@ -58,7 +58,7 @@ local function part(props: { [string]: any }): Part
 	p.Anchored = true
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.SmoothPlastic
+	p.Material = Enum.Material.Plastic -- matte, like the reference game; SmoothPlastic reads glossy
 	for key, value in props do
 		(p :: any)[key] = value
 	end
@@ -401,6 +401,74 @@ local function buildStand(parent: Instance, shop: Shops.Shop)
 	stand.Parent = parent
 end
 
+-- The shooting spot at the hub's front edge: an orange striped strip across the
+-- lane's mouth with a big arrow bobbing over it (HudController bobs it). The bow
+-- only comes out here (SlingshotService).
+local SPOT_COLORS = { Color3.fromRGB(255, 140, 40), Color3.fromRGB(255, 185, 70) }
+local SPOT_STRIPE = 4
+
+local function buildLaunchSpot(hub: Folder)
+	local spot = Instance.new("Folder")
+	spot.Name = "LaunchSpot"
+	local fromX, toX = Config.Launch.SpotFromX, Config.Hub.MaxX
+	local half = Config.Launch.SpotHalfWidth
+	local stripes = math.ceil(half * 2 / SPOT_STRIPE)
+	for i = 0, stripes - 1 do
+		local z0 = -half + i * SPOT_STRIPE
+		local z1 = math.min(z0 + SPOT_STRIPE, half)
+		part({
+			Name = "Stripe",
+			Size = Vector3.new(toX - fromX, 0.2, z1 - z0),
+			Position = Vector3.new((fromX + toX) / 2, 0.1, (z0 + z1) / 2),
+			Color = SPOT_COLORS[i % 2 + 1],
+			Material = Enum.Material.Plastic,
+			CanCollide = false,
+			CanQuery = false,
+			Parent = spot,
+		})
+	end
+
+	-- An invisible anchor in the middle for the arrow and the label.
+	local marker = part({
+		Name = "Marker",
+		Size = Vector3.new(1, 1, 1),
+		Position = Vector3.new((fromX + toX) / 2, 1, 0),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Parent = spot,
+	})
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "LaunchArrow"
+	billboard.Size = UDim2.fromOffset(220, 150)
+	billboard.StudsOffset = Vector3.new(0, 9, 0)
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 300
+	billboard.Parent = marker
+	local arrow = Instance.new("TextLabel")
+	arrow.Name = "Arrow"
+	arrow.BackgroundTransparency = 1
+	arrow.Position = UDim2.fromScale(0, 0.3)
+	arrow.Size = UDim2.fromScale(1, 0.7)
+	arrow.Font = Enum.Font.FredokaOne
+	arrow.TextScaled = true
+	arrow.Text = "▼"
+	arrow.TextColor3 = Color3.fromRGB(255, 215, 50)
+	arrow.TextStrokeTransparency = 0
+	arrow.TextStrokeColor3 = Color3.fromRGB(60, 35, 10)
+	arrow.Parent = billboard
+	local caption = arrow:Clone()
+	caption.Name = "Caption"
+	caption.Position = UDim2.fromScale(0, 0)
+	caption.Size = UDim2.fromScale(1, 0.32)
+	caption.Text = "SHOOT HERE"
+	caption.TextColor3 = Color3.new(1, 1, 1)
+	caption.Parent = billboard
+
+	spot.Parent = hub
+end
+
 local function buildHub(map: Folder): { CFrame }
 	local hub = Instance.new("Folder")
 	hub.Name = "Hub"
@@ -442,13 +510,14 @@ local function buildHub(map: Folder): { CFrame }
 	for _, shop in Shops.LIST do
 		buildStand(hub, shop)
 	end
+	buildLaunchSpot(hub)
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(12, 1, 12)
 	-- In front of the plots, facing the lane so players spawn looking down it.
-	spawn.CFrame = CFrame.lookAt(Vector3.new(-90, 0.5, 0), Vector3.new(0, 0.5, 0))
+	spawn.CFrame = CFrame.lookAt(Vector3.new(-62, 0.5, 0), Vector3.new(0, 0.5, 0))
 	spawn.Color = Color3.fromRGB(255, 255, 255)
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Neutral = true

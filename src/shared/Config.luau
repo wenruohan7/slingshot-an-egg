@@ -9,10 +9,10 @@ local Config = {}
 -- Players launch from anywhere on the hub floor.
 -- The front corners are cut off diagonally, narrowing into the corridor.
 Config.Hub = {
-	MinX = -220,
+	MinX = -160, -- made smaller 2026-11-01 (was -220 deep and 220 wide)
 	MaxX = 0,
-	Width = 220, -- studs, along Z
-	ChamferX = -60, -- the side walls turn in diagonally from here to the corridor
+	Width = 170, -- studs, along Z
+	ChamferX = -45, -- the side walls turn in diagonally from here to the corridor
 }
 
 -- Lane layout (Tmuk's sketch): one straight walled lane, the same width all the
@@ -66,8 +66,19 @@ Config.Hatching = {
 	NearLineChance = 0.25,
 	ShowBeamFromRarity = 4, -- Epic and up get a light beam everyone can see
 	ShowBeamFromMutation = 3, -- and so do Rainbow, Blocky, Galaxy and Divine pets
-	RevealSeconds = 3.5, -- how long a normal hatch keeps the egg on the lane
-	BigRevealSeconds = 5.5, -- the longer show for pets that get a light beam
+	RevealSeconds = 4, -- how long a normal hatch keeps the egg on the lane
+	BigRevealSeconds = 7, -- the longer show for pets that get a light beam
+	-- The reveal: after the crack, a "1 in N" number climbs to the real odds while
+	-- the pet's name fills in letter by letter. Rarer pets climb for longer:
+	-- RollSecondsPerDigit for each digit of N, up to MaxRollSeconds.
+	RollSecondsPerDigit = 0.4,
+	MaxRollSeconds = 2.4,
+	-- Banners that pop up as the number climbs past each value.
+	LuckBanners = {
+		{ From = 100, Text = "LUCKY!", Color = Color3.fromRGB(120, 230, 120) },
+		{ From = 10000, Text = "INSANE LUCK!", Color = Color3.fromRGB(110, 220, 255) },
+		{ From = 1000000, Text = "IMPOSSIBLE LUCK!", Color = Color3.fromRGB(255, 120, 230) },
+	},
 	BuildSeconds = 2.6, -- glow-and-spin build before a beam pet cracks out
 }
 
@@ -163,22 +174,37 @@ Config.Charge = {
 -- Slingshot launch power, in studs flown at Power = 1, before the slingshot's own Power.
 -- Fixes for models imported with Studio's 3D Importer (ReplicatedStorage.BowModels).
 -- The game already fixes a bow that comes in lying on its side or turned a quarter.
--- If the bows still face the wrong way (the string in front of the bow instead of
--- toward you), set BowTurn to 180.
+-- BowTurn turns an imported bow mesh around its up axis (inside the bow, so the
+-- string stays where it is). It is 180 because Tmuk's imported bows came in facing
+-- backwards; set it back to 0 if they now face the wrong way.
+-- GripTurn turns the whole bow in the hand, string and all.
 Config.Models = {
-	BowTurn = 0, -- degrees, turning the bow around its up axis
+	BowTurn = 180, -- degrees
+	GripTurn = 0, -- degrees
+}
+
+-- The shooting spot: the striped strip at the hub's front edge, where the lane
+-- begins. The bow is only in your hand while you stand on it (it isn't in the
+-- inventory), and you can only shoot from there.
+Config.Launch = {
+	SpotFromX = -14, -- the strip runs from here to the hub's front edge (Config.Hub.MaxX)
+	SpotHalfWidth = 30, -- studs either side of the middle line
 }
 
 Config.Slingshot = {
 	BasePower = 320, -- first slingshot: Poor and Not bad land in Shore, Normal and up in Meadow, all clear of the zone line
 
-	-- The bow animations, as "rbxassetid://123" (README: "Bow animations"). Upload
-	-- ReplicatedStorage.BowAnimations.BowDraw and BowRelease from the account (or group)
-	-- that owns the game and paste the ids here. Left empty, Studio plays them straight
-	-- from ReplicatedStorage (only you see them, and only in Studio), and a live game
+	-- The bow shot animations, as "rbxassetid://123" (README: "Bow animations").
+	-- After you tap, one plays (BowShot1 70% of the time, BowShot2 30%; the chances
+	-- and timings are in ShotAnimations.luau). Upload ReplicatedStorage.BowAnimations
+	-- .BowShot1 and .BowShot2 from the account (or group) that owns the game and
+	-- paste the ids here. Left empty, Studio plays them straight from
+	-- ReplicatedStorage (only you see them, and only in Studio), and a live game
 	-- poses the arms from code instead.
-	DrawAnimationId = "",
-	ReleaseAnimationId = "",
+	ShotAnimationIds = {
+		BowShot1 = "",
+		BowShot2 = "",
+	} :: { [string]: string },
 }
 
 -- The Robux shop (the Shop button). Create each item on the Creator Dashboard
@@ -186,17 +212,24 @@ Config.Slingshot = {
 -- id here. Items with Id = 0 show as "Coming soon". Price is only the label;
 -- Roblox charges what the Dashboard says, so keep them the same.
 -- Effect is what the game does with it (see MonetizationService).
+--
+-- How the Shop shows them:
+-- Featured = true puts the item in a big card at the top. Tiles = "Luck" fills
+-- that card with how much more likely each rarity gets (from LuckPassMultiplier).
+-- Tag puts a small ribbon on the card's corner, e.g. "BEST VALUE" or "LIMITED".
+-- Coin packs can have a second "Buy 3" button: make another developer product
+-- that gives 3 packs at once, and set Id3 and Price3 (Id3 = 0 shows "Coming soon").
 Config.RobuxShop = {
 	Passes = {
-		{ Key = "Luck2x", Name = "2x Luck", Text = "Double the Luck of every egg, forever", Icon = "🍀", Price = 249, Id = 0 },
+		{ Key = "Luck2x", Name = "2x Luck", Text = "Double the Luck of every egg, forever!", Icon = "🍀", Price = 249, Id = 0, Featured = true, Tiles = "Luck" },
 		{ Key = "VIP", Name = "VIP", Text = "1.5x coins, forever", Icon = "👑", Price = 399, Id = 0 },
 		{ Key = "AutoLaunch", Name = "Auto-Launch", Text = "Launches for you (coming in a later update)", Icon = "🔁", Price = 199, Id = 0 },
 		{ Key = "ExtraPedestals", Name = "Extra Pedestals", Text = "+4 pet slots (coming in a later update)", Icon = "🏛️", Price = 149, Id = 0 },
 	},
 	Products = {
 		-- Coin packs give this many seconds of your current income at once.
-		{ Key = "CoinsSmall", Name = "Bag of Coins", Text = "30 minutes of coins", Icon = "💰", Price = 25, Id = 0, IncomeSeconds = 1800 },
-		{ Key = "CoinsBig", Name = "Chest of Coins", Text = "6 hours of coins", Icon = "💎", Price = 199, Id = 0, IncomeSeconds = 21600 },
+		{ Key = "CoinsSmall", Name = "Bag of Coins", Text = "30 minutes of coins", Icon = "💰", Price = 25, Id = 0, IncomeSeconds = 1800, Price3 = 65, Id3 = 0 },
+		{ Key = "CoinsBig", Name = "Chest of Coins", Text = "6 hours of coins", Icon = "💎", Price = 199, Id = 0, IncomeSeconds = 21600, Price3 = 499, Id3 = 0, Tag = "BEST VALUE" },
 	},
 	VipCoinMultiplier = 1.5,
 	LuckPassMultiplier = 2,

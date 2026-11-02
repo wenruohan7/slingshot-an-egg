@@ -1,6 +1,7 @@
 --!strict
--- Launch controls: while the slingshot is in hand and you're in the hub, hold the
--- big launch button (or click and hold, or the E key on PC). Also draws the
+-- Launch controls: step onto the shooting spot and the draw starts by itself;
+-- tap anywhere (or click, or E) to shoot, or jump to step away. Holding the big
+-- launch button (or the E key) and letting go works too. Also draws the
 -- bouncing charge meter, the slingshot band pulling back and snapping,
 -- the stage word that pops up on release (with a ring burst for the best ones),
 -- a camera that follows the egg, and a banner naming the zone it lands in.
@@ -16,14 +17,30 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
 local Config = require(Shared.Config)
 local Charge = require(Shared.Charge)
+local Economy = require(Shared.Economy)
+local Format = require(Shared.Format)
 local Lane = require(Shared.Lane)
 local Remotes = require(Shared.Remotes)
+local ShotAnimations = require(Shared.ShotAnimations)
 local SlingshotModel = require(Shared.SlingshotModel)
 
 local LocalCharge = require(script.Parent:WaitForChild("LocalCharge"))
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
+
+-- No inventory bar: the bow comes out by itself on the shooting spot
+-- (SlingshotService), and there is nothing else to hold.
+task.spawn(function()
+	local StarterGui = game:GetService("StarterGui")
+	for _ = 1, 20 do
+		local ok = pcall(StarterGui.SetCoreGuiEnabled, StarterGui, Enum.CoreGuiType.Backpack, false)
+		if ok then
+			return
+		end
+		task.wait(0.5)
+	end
+end)
 
 local FONT = Enum.Font.FredokaOne
 local LAUNCH_KEY = Enum.KeyCode.E
@@ -35,7 +52,6 @@ local chargeInput: InputObject? = nil -- the touch, click or key that started th
 local chargedByTool = false -- started by Tool.Activated instead
 local lockedHumanoid: Humanoid? = nil -- turned to face the lane while charging
 local anchoredRoot: BasePart? = nil -- held in place from the draw until the release is over
-local RELEASE_HOLD = 0.5 -- seconds the player stays put after letting go
 
 -- Drives the band snap-back after release; tweening it springs the pouch forward.
 local pull = Instance.new("NumberValue")
@@ -49,7 +65,8 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "LaunchGui"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
+local playerGui = player:WaitForChild("PlayerGui")
+gui.Parent = playerGui
 
 local function corner(parent: Instance, radius: UDim)
 	local c = Instance.new("UICorner")
@@ -87,19 +104,36 @@ corner(button, UDim.new(1, 0))
 local buttonScale = Instance.new("UIScale")
 buttonScale.Parent = button
 
--- Vertical meter on the right: a framed bar whose colours blend from Poor at
--- the bottom to Perfect at the top, with faint lines where the stages meet.
+-- The meter, like Tmuk's reference video: a tall thin rounded tube in the
+-- middle of the screen (just right of the player, who stands left of centre in
+-- the over-the-shoulder view), made of chunky cells: red at the bottom through
+-- orange and yellow to green at the top, with a white needle and "+N" beside
+-- it, "TAP TO SHOOT!" across its foot, and a "100x LUCK" badge top right.
+local METER_CELLS = 10
+local CELL_GAP = 3
+local CELL_COLORS = {
+	Color3.fromRGB(235, 55, 50), -- bottom
+	Color3.fromRGB(255, 140, 40),
+	Color3.fromRGB(255, 220, 60),
+	Color3.fromRGB(110, 225, 70), -- top
+}
+
 local meter = Instance.new("Frame")
 meter.Name = "Meter"
-meter.AnchorPoint = Vector2.new(1, 0.5)
-meter.Position = UDim2.new(1, -220, 0.5, 0)
-meter.Size = UDim2.fromOffset(60, 330)
-meter.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+meter.AnchorPoint = Vector2.new(0.5, 0)
+meter.Position = UDim2.fromScale(0.5, 0.12)
+meter.Size = UDim2.fromScale(0, 0.6) -- the height follows the screen; the width follows the height
+meter.SizeConstraint = Enum.SizeConstraint.RelativeYY
+meter.BackgroundColor3 = Color3.fromRGB(25, 22, 35)
 meter.Visible = false
 meter.Parent = gui
-corner(meter, UDim.new(0, 18))
+corner(meter, UDim.new(1, 0))
+local meterShape = Instance.new("UIAspectRatioConstraint")
+meterShape.AspectRatio = 0.16
+meterShape.Parent = meter
+meter.Size = UDim2.fromScale(0.096, 0.6)
 local frameStroke = Instance.new("UIStroke")
-frameStroke.Color = Color3.new(1, 1, 1)
+frameStroke.Color = Color3.fromRGB(20, 18, 28)
 frameStroke.Thickness = 4
 frameStroke.Parent = meter
 
@@ -107,61 +141,200 @@ local bar = Instance.new("Frame")
 bar.Name = "Bar"
 bar.AnchorPoint = Vector2.new(0.5, 0.5)
 bar.Position = UDim2.fromScale(0.5, 0.5)
-bar.Size = UDim2.new(1, -18, 1, -18)
-bar.BackgroundColor3 = Color3.new(1, 1, 1)
+bar.Size = UDim2.new(1, -12, 1, -14)
+bar.BackgroundTransparency = 1
 bar.Parent = meter
-corner(bar, UDim.new(0, 10))
-local barStroke = Instance.new("UIStroke")
-barStroke.Color = Color3.fromRGB(20, 20, 30)
-barStroke.Thickness = 2
-barStroke.Parent = bar
 
--- On phones, keep the button and meter clear of the jump button, which sits
--- within about 230 px of the bottom-right corner in every layout.
+-- On phones, keep the button clear of the jump button, which sits within
+-- about 230 px of the bottom-right corner in every layout.
 if UserInputService.TouchEnabled then
 	button.Position = UDim2.new(1, -240, 1, -30)
-	meter.AnchorPoint = Vector2.new(1, 1)
-	meter.Position = UDim2.new(1, -410, 1, -30)
 end
 
 local stages = Config.Charge.Stages
 
--- Each stage's colour sits at the middle of its band, and the gradient blends between them.
-local keypoints = { ColorSequenceKeypoint.new(0, stages[#stages].Color) }
-for i = #stages, 1, -1 do
-	local stage = stages[i]
-	local top = if i == 1 then 1 else stages[i - 1].Min
-	table.insert(keypoints, ColorSequenceKeypoint.new((stage.Min + top) / 2, stage.Color))
-	if stage.Min > 0 then
-		local line = Instance.new("Frame")
-		line.Name = stage.Name .. "Line"
-		line.AnchorPoint = Vector2.new(0, 0.5)
-		line.Position = UDim2.fromScale(0, 1 - stage.Min)
-		line.Size = UDim2.new(1, 0, 0, 2)
-		line.BorderSizePixel = 0
-		line.BackgroundColor3 = Color3.new(1, 1, 1)
-		line.BackgroundTransparency = 0.5
-		line.Parent = bar
-	end
+local function cellColor(t: number): Color3
+	local scaled = t * (#CELL_COLORS - 1)
+	local i = math.clamp(math.floor(scaled) + 1, 1, #CELL_COLORS - 1)
+	return CELL_COLORS[i]:Lerp(CELL_COLORS[i + 1], scaled - (i - 1))
 end
-table.insert(keypoints, ColorSequenceKeypoint.new(1, stages[1].Color))
-local gradient = Instance.new("UIGradient")
-gradient.Color = ColorSequence.new(keypoints)
-gradient.Rotation = -90 -- 0 at the bottom, 1 at the top, like the needle
-gradient.Parent = bar
+
+for i = 1, METER_CELLS do
+	local t = (i - 1) / (METER_CELLS - 1) -- 0 bottom, 1 top
+	local cell = Instance.new("Frame")
+	cell.Name = "Cell" .. i
+	cell.AnchorPoint = Vector2.new(0.5, 1)
+	cell.Position = UDim2.new(0.5, 0, 1 - (i - 1) / METER_CELLS, 0)
+	cell.Size = UDim2.new(1, 0, 1 / METER_CELLS, -CELL_GAP)
+	cell.BorderSizePixel = 0
+	cell.BackgroundColor3 = cellColor(t)
+	cell.Parent = bar
+	corner(cell, UDim.new(0, if i == 1 or i == METER_CELLS then 12 else 4))
+	-- A lighter top edge on each cell, so they look like little blocks.
+	local light = Instance.new("UIGradient")
+	light.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 200))
+	light.Rotation = 90
+	light.Parent = cell
+end
+
+-- A light shine down the left side, like a glass tube.
+local shine = Instance.new("Frame")
+shine.Name = "Shine"
+shine.Position = UDim2.new(0, 4, 0, 8)
+shine.Size = UDim2.new(0, 6, 1, -16)
+shine.BorderSizePixel = 0
+shine.BackgroundColor3 = Color3.new(1, 1, 1)
+shine.BackgroundTransparency = 0.6
+shine.ZIndex = 2
+shine.Parent = bar
+corner(shine, UDim.new(1, 0))
 
 local needle = Instance.new("Frame")
 needle.Name = "Needle"
 needle.AnchorPoint = Vector2.new(0.5, 0.5)
-needle.Size = UDim2.new(1, 22, 0, 10)
+needle.Size = UDim2.new(1, 26, 0, 12)
 needle.BackgroundColor3 = Color3.new(1, 1, 1)
-needle.ZIndex = 2
+needle.ZIndex = 3
 needle.Parent = bar
 local needleStroke = Instance.new("UIStroke")
 needleStroke.Color = Color3.fromRGB(20, 20, 30)
 needleStroke.Thickness = 2
 needleStroke.Parent = needle
 corner(needle, UDim.new(1, 0))
+
+-- "+342" beside the needle: the power you'd get if you let go now (the studs the
+-- egg would fly), so it climbs as you buy better bows.
+local needleTag = label({
+	Name = "PowerTag",
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(1, 12, 0.5, 0),
+	Size = UDim2.fromOffset(110, 34),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextStrokeTransparency = 1,
+	ZIndex = 3,
+	Parent = meter,
+})
+local needleTagStroke = Instance.new("UIStroke")
+needleTagStroke.Color = Color3.fromRGB(20, 20, 30)
+needleTagStroke.Thickness = 3
+needleTagStroke.Parent = needleTag
+
+local meterHint = label({
+	Name = "TapHint",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 1, 4),
+	Size = UDim2.fromOffset(250, 36),
+	ZIndex = 4,
+	Text = "LET GO TO SHOOT!",
+	TextStrokeTransparency = 1,
+	Parent = meter,
+})
+local meterHintStroke = Instance.new("UIStroke")
+meterHintStroke.Color = Color3.fromRGB(20, 20, 30)
+meterHintStroke.Thickness = 3
+meterHintStroke.Parent = meterHint
+-- "x100 LUCK" badge in the top right while you aim: your egg's Luck.
+local luckBadge = Instance.new("Frame")
+luckBadge.Name = "LuckBadge"
+luckBadge.AnchorPoint = Vector2.new(1, 0)
+luckBadge.Position = UDim2.new(1, -24, 0, 70)
+luckBadge.Size = UDim2.fromOffset(190, 52)
+luckBadge.BackgroundColor3 = Color3.new(1, 1, 1)
+luckBadge.Visible = false
+luckBadge.Parent = gui
+corner(luckBadge, UDim.new(1, 0))
+local badgeStroke = Instance.new("UIStroke")
+badgeStroke.Color = Color3.fromRGB(20, 18, 28)
+badgeStroke.Thickness = 3
+badgeStroke.Parent = luckBadge
+local badgeFill = Instance.new("UIGradient")
+badgeFill.Color = ColorSequence.new(Color3.fromRGB(200, 120, 255), Color3.fromRGB(130, 70, 220))
+badgeFill.Rotation = 90
+badgeFill.Parent = luckBadge
+local clover = Instance.new("Frame")
+clover.Name = "Clover"
+clover.AnchorPoint = Vector2.new(0.5, 0.5)
+clover.Position = UDim2.new(0, 20, 0.5, 0)
+clover.Size = UDim2.fromOffset(50, 50)
+clover.BackgroundTransparency = 1
+clover.Rotation = 45
+clover.Parent = luckBadge
+for _, offset in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
+	local leaf = Instance.new("Frame")
+	leaf.Position = UDim2.fromScale(offset.X * 0.48 + 0.02, offset.Y * 0.48 + 0.02)
+	leaf.Size = UDim2.fromScale(0.48, 0.48)
+	leaf.BackgroundColor3 = Color3.fromRGB(80, 210, 80)
+	leaf.Parent = clover
+	corner(leaf, UDim.new(1, 0))
+	local leafStroke = Instance.new("UIStroke")
+	leafStroke.Color = Color3.fromRGB(20, 80, 25)
+	leafStroke.Thickness = 2.5
+	leafStroke.Parent = leaf
+end
+local luckBadgeText = label({
+	Position = UDim2.fromOffset(52, 8),
+	Size = UDim2.new(1, -64, 1, -16),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextStrokeTransparency = 1,
+	Text = "x1 LUCK",
+	Parent = luckBadge,
+})
+local luckBadgeStroke = Instance.new("UIStroke")
+luckBadgeStroke.Color = Color3.fromRGB(20, 18, 28)
+luckBadgeStroke.Thickness = 2.5
+luckBadgeStroke.Parent = luckBadgeText
+
+local leaveHint = label({
+	Name = "LeaveHint",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 1, 44),
+	Size = UDim2.fromOffset(200, 22),
+	Text = "Jump to step away",
+	TextColor3 = Color3.fromRGB(225, 225, 235),
+	TextStrokeTransparency = 1,
+	Visible = false,
+	Parent = meter,
+})
+local leaveHintStroke = Instance.new("UIStroke")
+leaveHintStroke.Color = Color3.fromRGB(20, 20, 30)
+leaveHintStroke.Thickness = 2
+leaveHintStroke.Parent = leaveHint
+
+-- "+342 POWER" floats up from the meter when you let go.
+local function powerPop(amount: number, color: Color3)
+	local pop = label({
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(1, 8, 0.45, 0),
+		Size = UDim2.fromOffset(240, 36),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.fromRGB(120, 235, 80),
+		TextStrokeTransparency = 1,
+		Text = `+{Format.number(amount)} POWER`,
+		ZIndex = 4,
+		Parent = meter,
+	})
+	local _ = color
+	local popStroke = Instance.new("UIStroke")
+	popStroke.Color = Color3.fromRGB(20, 20, 30)
+	popStroke.Thickness = 3
+	popStroke.Parent = pop
+	local popScale = Instance.new("UIScale")
+	popScale.Scale = 0.5
+	popScale.Parent = pop
+	TweenService:Create(popScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	local rise = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	TweenService:Create(pop, rise, { Position = pop.Position - UDim2.fromOffset(0, 24), TextTransparency = 1 }):Play()
+	TweenService:Create(popStroke, rise, { Transparency = 1 }):Play()
+	task.delay(1.2, function()
+		pop:Destroy()
+	end)
+end
+
+-- Studs the egg flies at this meter value with your current bow.
+local function powerAt(value: number): number
+	local level = player:GetAttribute("SlingshotLevel")
+	return Economy.launchPower(if typeof(level) == "number" then level else 0) * Charge.stageFor(value).Power
+end
 
 local stagePopup = label({
 	Name = "StagePopup",
@@ -282,6 +455,58 @@ local eggMarker = label({
 	Parent = distanceBar,
 })
 
+-- Above the bar while the egg flies: the distance so far (climbing), the zone
+-- it's over, and your egg's Luck.
+local flightReadout = Instance.new("Frame")
+flightReadout.Name = "FlightReadout"
+flightReadout.AnchorPoint = Vector2.new(0.5, 0)
+flightReadout.Position = UDim2.new(0.5, 0, 0, 62)
+flightReadout.Size = UDim2.fromOffset(420, 64)
+flightReadout.BackgroundTransparency = 1
+flightReadout.Visible = false
+flightReadout.Parent = gui
+local function readoutText(props: { [string]: any }): TextLabel
+	local l = label(props)
+	l.TextStrokeTransparency = 1
+	l.Parent = flightReadout
+	local st = Instance.new("UIStroke")
+	st.Color = Color3.fromRGB(20, 20, 30)
+	st.Thickness = 3
+	st.Parent = l
+	return l
+end
+local distanceText = readoutText({
+	Name = "Distance",
+	Position = UDim2.fromOffset(0, 0),
+	Size = UDim2.new(0.5, -6, 0, 44),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	Text = "0 studs",
+})
+local luckText = readoutText({
+	Name = "Luck",
+	Position = UDim2.new(0.5, 6, 0, 4),
+	Size = UDim2.new(0.5, -6, 0, 36),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = Color3.fromRGB(130, 235, 110),
+	Text = "x1 LUCK",
+})
+local zoneText = readoutText({
+	Name = "Zone",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 42),
+	Size = UDim2.fromOffset(300, 24),
+	Text = "",
+})
+
+local function eggLuck(): number
+	local level = player:GetAttribute("EggLevel")
+	local luck = Economy.eggLuck(if typeof(level) == "number" then level else 0)
+	if player:GetAttribute("Pass_Luck2x") == true then
+		luck *= Config.RobuxShop.LuckPassMultiplier
+	end
+	return luck
+end
+
 local trackedEgg: BasePart? = nil
 
 local function setDistanceBar(fraction: number)
@@ -294,6 +519,11 @@ local function showDistanceBar(egg: BasePart)
 	trackedEgg = egg
 	setDistanceBar(0)
 	distanceBar.Visible = true
+	luckText.Text = `x{Format.number(eggLuck())} LUCK`
+	distanceText.Text = "0 studs"
+	zoneText.Text = Config.Zones[1].Name
+	zoneText.TextColor3 = Config.Zones[1].Color
+	flightReadout.Visible = true
 end
 
 -- Hides the bar a moment after landing, unless a new egg is already flying.
@@ -303,6 +533,7 @@ local function hideDistanceBar(after: number)
 		if trackedEgg == egg then
 			trackedEgg = nil
 			distanceBar.Visible = false
+			flightReadout.Visible = false
 		end
 	end)
 end
@@ -310,7 +541,19 @@ end
 RunService.RenderStepped:Connect(function()
 	local egg = trackedEgg
 	if egg and egg.Parent then
-		setDistanceBar((egg.Position.X - Config.Lane.StartX) / Lane.Length)
+		local distance = math.max(0, egg.Position.X - Config.Lane.StartX)
+		setDistanceBar(distance / Lane.Length)
+		distanceText.Text = `{Format.commas(distance)} studs`
+		local zone = Config.Zones[Lane.zoneAt(distance)]
+		if zone and zoneText.Text ~= zone.Name then
+			zoneText.Text = zone.Name
+			zoneText.TextColor3 = zone.Color
+			local pop: UIScale = zoneText:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+			pop.Parent = zoneText
+			pop.Scale = 1.5
+			TweenService:Create(pop, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+				:Play()
+		end
 	end
 end)
 
@@ -366,7 +609,7 @@ local function canLaunch(): boolean
 		and humanoid.Health > 0
 		and root ~= nil
 		and root:IsA("BasePart")
-		and Lane.isInHub(root.Position)
+		and Lane.isOnLaunchSpot(root.Position)
 end
 
 -- Turns the character to face down the lane (where the egg flies) and holds
@@ -410,16 +653,34 @@ end
 local RELEASE_LOCK = 1
 local lastRelease = -math.huge
 local function eggInAir(): boolean
-	return flying or player:GetAttribute("EggInFlight") == true or os.clock() - lastRelease < RELEASE_LOCK
+	return flying
+		or LocalCharge.shooting
+		or player:GetAttribute("EggInFlight") == true
+		or os.clock() - lastRelease < RELEASE_LOCK
 end
 
-local function startCharge(input: InputObject?)
+-- Auto charge: stepping onto the shooting spot starts the draw by itself, and
+-- any tap (or click, or E) shoots. Jumping steps away without shooting, and
+-- the draw won't start again until you've walked off the spot and back on.
+local AUTO_DELAY = 0.35 -- seconds on the spot before the draw starts
+local autoCharge = false -- the current draw was started by the spot
+local autoBlocked = false -- jumped out of a draw: wait until off the spot
+local onSpotSince: number? = nil
+
+local function startCharge(input: InputObject?, auto: boolean?)
 	if charging or eggInAir() or not canLaunch() then
 		return
 	end
 	charging = true
+	autoCharge = auto == true
+	meterHint.Text = if autoCharge then "TAP TO SHOOT!" else "LET GO TO SHOOT!"
+	meterHint.TextColor3 = Color3.new(1, 1, 1)
+	luckBadgeText.Text = `{Format.number(eggLuck())}x LUCK`
+	luckBadge.Visible = true
+	leaveHint.Visible = autoCharge
+	button.Text = if autoCharge then "🥚\nTAP!" else "🥚\nHOLD"
 	chargeInput = input
-	chargedByTool = input == nil
+	chargedByTool = input == nil and not autoCharge
 	chargeStart = os.clock()
 	LocalCharge.charging = true
 	LocalCharge.startedAt = chargeStart
@@ -433,32 +694,98 @@ local function startCharge(input: InputObject?)
 	TweenService:Create(buttonScale, TweenInfo.new(0.15), { Scale = 0.88 }):Play()
 end
 
+-- Which shot animation plays: by each one's Chance (BowShot1 70%, BowShot2 30%).
+local function pickShot(): ShotAnimations.Shot
+	local total = 0
+	for _, shot in ShotAnimations do
+		total += shot.Chance
+	end
+	local roll = math.random() * total
+	for _, shot in ShotAnimations do
+		roll -= shot.Chance
+		if roll < 0 then
+			return shot
+		end
+	end
+	return ShotAnimations[1]
+end
+
 local function releaseCharge()
 	if not charging then
 		return
 	end
 	charging = false
+	autoCharge = false
 	lastRelease = os.clock()
 	chargeInput = nil
 	chargedByTool = false
-	local stage = Charge.stageFor(Charge.valueAt(os.clock() - chargeStart)).Name
+	local now = os.clock()
+	local releaseValue = Charge.valueAt(now - chargeStart)
+	local stage = Charge.stageFor(releaseValue).Name
+	powerPop(powerAt(releaseValue), Charge.stageFor(releaseValue).Color)
+	-- The stage word across the meter's foot, like "PERFECT!".
+	meterHint.Text = string.upper(stage) .. "!"
+	meterHint.TextColor3 = Charge.stageFor(releaseValue).Color
+	leaveHint.Visible = false
+
+	-- The tap starts the shot animation (PoseController); the string lets go and
+	-- the egg leaves at its ReleaseAt (the server fires it at the same time).
+	local shot = pickShot()
+	local perfect = stage == stages[1].Name
 	LocalCharge.charging = false
 	LocalCharge.releaseStage = stage
-	LocalCharge.releasePull = pull.Value
-	LocalCharge.releasedAt = os.clock()
-	local hold = RELEASE_HOLD + if stage == stages[1].Name then Config.Charge.PerfectFreeze else 0
-	task.delay(hold, unlockPlayer)
-	Remotes.ChargeRelease:FireServer()
-	local tween = TweenService:Create(pull, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Value = 0 })
-	snapTween = tween
-	tween:Play()
+	LocalCharge.releasePull = 1
+	LocalCharge.shooting = true
+	LocalCharge.shotName = shot.Name
+	LocalCharge.shotStartedAt = now
+	Remotes.ChargeRelease:FireServer(shot.Name)
+	task.delay(shot.ReleaseAt, function()
+		if LocalCharge.shotStartedAt == now then
+			LocalCharge.releasedAt = os.clock()
+		end
+	end)
+	local length = shot.Length + if perfect then Config.Charge.PerfectFreeze else 0
+	task.delay(length, function()
+		if LocalCharge.shotStartedAt == now then
+			LocalCharge.shooting = false
+		end
+		unlockPlayer()
+	end)
 	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	task.delay(0.4, function()
+	task.delay(1, function()
 		if not charging then
 			meter.Visible = false
+			luckBadge.Visible = false
 		end
 	end)
 end
+
+-- Steps out of the draw without shooting (jumping off the spot).
+local function cancelCharge()
+	if not charging then
+		return
+	end
+	charging = false
+	autoCharge = false
+	autoBlocked = true
+	chargeInput = nil
+	chargedByTool = false
+	LocalCharge.charging = false
+	Remotes.ChargeCancel:FireServer()
+	unlockPlayer()
+	local tween = TweenService:Create(pull, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = 0 })
+	snapTween = tween
+	tween:Play()
+	TweenService:Create(buttonScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	meter.Visible = false
+	luckBadge.Visible = false
+end
+
+UserInputService.JumpRequest:Connect(function()
+	if charging and autoCharge then
+		cancelCharge()
+	end
+end)
 
 local function isPress(input: InputObject): boolean
 	return input.UserInputType == Enum.UserInputType.MouseButton1
@@ -467,12 +794,24 @@ end
 
 button.InputBegan:Connect(function(input)
 	if isPress(input) then
-		startCharge(input)
+		if charging and autoCharge then
+			releaseCharge()
+		else
+			startCharge(input)
+		end
 	end
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == LAUNCH_KEY then
+	if processed then
+		return
+	end
+	if charging and autoCharge then
+		-- Tap anywhere to shoot.
+		if isPress(input) or input.KeyCode == LAUNCH_KEY then
+			releaseCharge()
+		end
+	elseif input.KeyCode == LAUNCH_KEY then
 		startCharge(input)
 	end
 end)
@@ -481,7 +820,7 @@ end)
 -- launches. On touch screens only the finger that started the charge counts, so
 -- moving or jumping with another finger doesn't fire the egg.
 UserInputService.InputEnded:Connect(function(input: InputObject)
-	if not charging or chargedByTool then
+	if not charging or chargedByTool or autoCharge then
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.Touch then
@@ -500,7 +839,11 @@ local function hookTool(tool: Tool?)
 	end
 	hookedTool = tool
 	tool.Activated:Connect(function()
-		startCharge(nil)
+		if charging and autoCharge then
+			releaseCharge()
+		else
+			startCharge(nil)
+		end
 	end)
 	tool.Deactivated:Connect(function()
 		if chargedByTool then
@@ -512,16 +855,48 @@ end
 RunService.RenderStepped:Connect(function()
 	hookTool(heldSlingshot())
 	local ready = canLaunch()
-	button.Visible = (charging or not eggInAir()) and ready
+	-- No button during a spot-started draw (tap anywhere), like the reference.
+	button.Visible = ((charging and not autoCharge) or (not charging and not eggInAir())) and ready
 	if charging and not ready then
-		-- Put away or walked off the hub mid-charge: let go.
-		releaseCharge()
+		-- Bow gone or off the spot mid-draw: a spot-started draw just stops,
+		-- a held one lets go.
+		if autoCharge then
+			cancelCharge()
+		else
+			releaseCharge()
+		end
+	end
+	-- Auto charge on the spot.
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local onSpot = root ~= nil and root:IsA("BasePart") and Lane.isOnLaunchSpot(root.Position)
+	if not onSpot then
+		onSpotSince = nil
+		autoBlocked = false
+	elseif onSpotSince == nil then
+		onSpotSince = os.clock()
+	end
+	if
+		ready
+		and not charging
+		and not autoBlocked
+		and not eggInAir()
+		and onSpotSince ~= nil
+		and os.clock() - onSpotSince >= AUTO_DELAY
+	then
+		startCharge(nil, true)
 	end
 	if charging then
 		local value = Charge.valueAt(os.clock() - chargeStart)
 		needle.Position = UDim2.fromScale(0.5, 1 - value)
-		needle.BackgroundColor3 = Charge.stageFor(value).Color
-		pull.Value = SlingshotModel.drawFor(value)
+		needleTag.Position = UDim2.new(1, 12, 1 - value, 0)
+		needleTag.Text = `+{Format.number(powerAt(value))}`
+	end
+	-- Clear the screen while aiming and while the egg flies: the menu buttons
+	-- and the hint line hide, the coin counter stays.
+	local menuGui = playerGui:FindFirstChild("MenuGui")
+	if menuGui and menuGui:IsA("ScreenGui") then
+		menuGui.Enabled = not (charging or flying)
 	end
 end)
 
@@ -584,5 +959,5 @@ end)
 Remotes.EggLanded.OnClientEvent:Connect(function(zoneIndex: number, _stageName: string, _distance: number)
 	local zone = Config.Zones[zoneIndex]
 	popText(zoneBanner, nil, "Landed in " .. zone.Name .. "!", zone.Color, 2)
-	hideDistanceBar(2.5)
+	hideDistanceBar(1) -- out of the way before the hatch reveal starts
 end)

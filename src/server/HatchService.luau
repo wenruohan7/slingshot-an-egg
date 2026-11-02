@@ -47,13 +47,36 @@ end
 -- Luck scales each rarity's chance by Luck ^ (how rare it is, 0 to 1): Common
 -- stays the same, Secret gets the full Luck. With 1000x Luck, Rare pets are 10x
 -- as likely, Legendary 100x and Secret 1000x (before the shares are rebalanced).
-function HatchService.rollRarity(zone: number, luck: number): number
+local function rarityWeights(zone: number, luck: number): { number }
 	local rates = Config.Zones[zone].DropRates
 	local weights = {}
 	for i, rate in rates do
 		weights[i] = rate * luck ^ ((i - 1) / (#rates - 1))
 	end
-	return pickWeighted(weights)
+	return weights
+end
+
+function HatchService.rollRarity(zone: number, luck: number): number
+	return pickWeighted(rarityWeights(zone, luck))
+end
+
+-- The chance (0 to 1) of hatching exactly this rarity and mutation from this
+-- zone with this Luck. The hatch reveal shows it as "1 in N".
+function HatchService.chance(zone: number, luck: number, rarity: number, mutation: number?): number
+	local weights = rarityWeights(zone, luck)
+	local total = 0
+	for _, w in weights do
+		total += w
+	end
+	local chance = if total > 0 then (weights[rarity] or 0) / total else 0
+	-- Mutations are checked from the rarest down, so one only applies if every
+	-- rarer one missed.
+	local first = if mutation then mutation else 1
+	for i = #Config.Mutations, first, -1 do
+		local hit = Config.Mutations[i].Chance / 100
+		chance *= if i == mutation then hit else 1 - hit
+	end
+	return chance
 end
 
 function HatchService.rollMutation(): number?
@@ -91,11 +114,12 @@ end
 -- Hatches an egg that landed `distance` studs down the lane.
 -- Returns the new pet, whether it was merged into a Big pet, whether it was
 -- kept (a full inventory only keeps pets better than the weakest one), and
--- whether it's the first of its kind for the player's Index.
-function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boolean, boolean, boolean)
+-- whether it's the first of its kind for the player's Index, and the odds of
+-- hatching it (the N in "1 in N").
+function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boolean, boolean, boolean, number)
 	local data = DataService.get(player)
 	if not data then
-		return nil, false, false, false
+		return nil, false, false, false, 1
 	end
 
 	local zone = HatchService.dropZone(distance)
@@ -103,6 +127,8 @@ function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boole
 	local luck = Economy.eggLuck(data.EggLevel) * luckPass
 	local rarity = HatchService.rollRarity(zone, luck)
 	local pet: Pets.Pet = { Id = Pets.idFor(zone, rarity), Mutation = HatchService.rollMutation() }
+	local chance = HatchService.chance(zone, luck, rarity, pet.Mutation)
+	local odds = if chance > 0 then 1 / chance else 1
 	local isNew = not data.Discovered[pet.Id]
 	data.Discovered[pet.Id] = true
 
@@ -116,14 +142,14 @@ function HatchService.hatch(player: Player, distance: number): (Pets.Pet?, boole
 			end
 		end
 		if Pets.earnRate(pet) <= weakestRate then
-			return pet, false, false, isNew
+			return pet, false, false, isNew, odds
 		end
 		table.remove(data.Pets, weakest)
 	end
 
 	table.insert(data.Pets, pet)
 	local big = combine(data, pet)
-	return big or pet, big ~= nil, true, isNew
+	return big or pet, big ~= nil, true, isNew, odds
 end
 
 return HatchService

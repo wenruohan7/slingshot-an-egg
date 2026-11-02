@@ -11,6 +11,8 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 
+local Config = require(Shared.Config)
+local Economy = require(Shared.Economy)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 
@@ -60,33 +62,58 @@ end
 -- Coin counter
 --------------------------------------------------------------------------------
 
--- Big coins number with a coin icon: bottom left on PC like most simulators,
--- top left on phones where the bottom left belongs to the thumbstick.
+-- Big outlined counters on the left, just under the Index and Shop buttons:
+-- your egg's Luck (with a four-leaf clover) and your coins (with a coin), and
+-- your income under them. The same spot on PC and phones.
 local counter = Instance.new("Frame")
-counter.Name = "Coins"
+counter.Name = "Counters"
 counter.BackgroundTransparency = 1
-counter.Size = UDim2.fromOffset(320, 84)
-if UserInputService.TouchEnabled then
-	counter.Position = UDim2.fromOffset(12, 8)
-else
-	counter.AnchorPoint = Vector2.new(0, 1)
-	counter.Position = UDim2.new(0, 16, 1, -16)
-end
+counter.Position = UDim2.new(0, 16, 0.5, 8)
+counter.Size = UDim2.fromOffset(320, 150)
 counter.Parent = gui
+if UserInputService.TouchEnabled then
+	local small = Instance.new("UIScale")
+	small.Scale = 0.75
+	small.Parent = counter
+end
+-- Pops on coin gains; a separate frame so it doesn't fight the phone scale.
+local coinRow = Instance.new("Frame")
+coinRow.Name = "Coins"
+coinRow.BackgroundTransparency = 1
+coinRow.Position = UDim2.fromOffset(0, 54)
+coinRow.Size = UDim2.new(1, 0, 0, 64)
+coinRow.Parent = counter
 local counterScale = Instance.new("UIScale")
-counterScale.Parent = counter
+counterScale.Parent = coinRow
 
+-- A thick dark outline makes the numbers readable on any background.
+local function outline(target: GuiObject, thickness: number)
+	if target:IsA("TextLabel") then
+		target.TextStrokeTransparency = 1
+	end
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(30, 20, 10)
+	stroke.Thickness = thickness
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = target
+end
+
+-- Coin: a gold disc with a darker rim and an inner ring.
 local coinIcon = Instance.new("Frame")
-coinIcon.AnchorPoint = Vector2.new(0, 1)
-coinIcon.Position = UDim2.new(0, 4, 1, -6)
-coinIcon.Size = UDim2.fromOffset(52, 52)
+coinIcon.AnchorPoint = Vector2.new(0, 0.5)
+coinIcon.Position = UDim2.new(0, 4, 0.5, 0)
+coinIcon.Size = UDim2.fromOffset(54, 54)
 coinIcon.BackgroundColor3 = COIN_COLOR
-coinIcon.Parent = counter
+coinIcon.Parent = coinRow
 corner(coinIcon, UDim.new(1, 0))
 local coinStroke = Instance.new("UIStroke")
 coinStroke.Color = Color3.fromRGB(150, 95, 10)
 coinStroke.Thickness = 4
 coinStroke.Parent = coinIcon
+local coinShine = Instance.new("UIGradient")
+coinShine.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(220, 200, 170))
+coinShine.Rotation = 60
+coinShine.Parent = coinIcon
 local coinInner = Instance.new("Frame")
 coinInner.AnchorPoint = Vector2.new(0.5, 0.5)
 coinInner.Position = UDim2.fromScale(0.5, 0.5)
@@ -99,37 +126,70 @@ innerStroke.Color = Color3.fromRGB(215, 160, 30)
 innerStroke.Thickness = 3
 innerStroke.Parent = coinInner
 
--- A thick dark outline makes the numbers readable on any background.
-local function outline(target: TextLabel, thickness: number)
-	target.TextStrokeTransparency = 1
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(30, 20, 10)
-	stroke.Thickness = thickness
-	stroke.Parent = target
-end
-
 local coinsLabel = label({
-	AnchorPoint = Vector2.new(0, 1),
-	Position = UDim2.new(0, 66, 1, 0),
-	Size = UDim2.new(1, -70, 0, 58),
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(0, 70, 0.5, 0),
+	Size = UDim2.new(1, -74, 0, 60),
 	TextXAlignment = Enum.TextXAlignment.Left,
 	TextColor3 = COIN_COLOR,
 	Text = "0",
-	Parent = counter,
+	Parent = coinRow,
 })
-outline(coinsLabel, 4)
+outline(coinsLabel, 4.5)
 local incomeLabel = label({
-	Position = UDim2.fromOffset(68, 0),
-	Size = UDim2.new(1, -70, 0, 24),
+	Position = UDim2.fromOffset(72, 118),
+	Size = UDim2.new(1, -76, 0, 26),
 	TextXAlignment = Enum.TextXAlignment.Left,
 	Text = "+0/s",
 	Parent = counter,
 })
 outline(incomeLabel, 2.5)
 
+-- Luck: a four-leaf clover (four green circles round a centre) and "x10".
+local LUCK_COLOR = Color3.fromRGB(120, 235, 100)
+local clover = Instance.new("Frame")
+clover.Name = "Clover"
+clover.Position = UDim2.fromOffset(6, 2)
+clover.Size = UDim2.fromOffset(48, 48)
+clover.BackgroundTransparency = 1
+clover.Rotation = 45
+clover.Parent = counter
+for _, offset in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
+	local leaf = Instance.new("Frame")
+	leaf.Position = UDim2.fromScale(offset.X * 0.48 + 0.02, offset.Y * 0.48 + 0.02)
+	leaf.Size = UDim2.fromScale(0.48, 0.48)
+	leaf.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
+	leaf.Parent = clover
+	corner(leaf, UDim.new(1, 0))
+	local leafStroke = Instance.new("UIStroke")
+	leafStroke.Color = Color3.fromRGB(20, 80, 25)
+	leafStroke.Thickness = 2.5
+	leafStroke.Parent = leaf
+end
+local luckLabel = label({
+	Position = UDim2.fromOffset(70, 0),
+	Size = UDim2.new(1, -74, 0, 52),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = LUCK_COLOR,
+	Text = "x1",
+	Parent = counter,
+})
+outline(luckLabel, 4)
+
+local function updateLuck()
+	local luck = Economy.eggLuck(attribute("EggLevel"))
+	if player:GetAttribute("Pass_Luck2x") == true then
+		luck *= Config.RobuxShop.LuckPassMultiplier
+	end
+	luckLabel.Text = `x{Format.number(luck)} Luck`
+end
+updateLuck()
+player:GetAttributeChangedSignal("EggLevel"):Connect(updateLuck)
+player:GetAttributeChangedSignal("Pass_Luck2x"):Connect(updateLuck)
+
 -- "+12" floats away from the counter whenever coins go up.
-local POP_FROM = UDim2.new(0, 230, 1, -30)
-local POP_TO = UDim2.new(0, 230, 1, -70)
+local POP_FROM = UDim2.new(0, 230, 0.5, 0)
+local POP_TO = UDim2.new(0, 230, 0.5, -40)
 local function coinPop(amount: number)
 	local pop = label({
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -138,7 +198,7 @@ local function coinPop(amount: number)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = COIN_COLOR,
 		Text = "+" .. Format.coins(amount),
-		Parent = counter,
+		Parent = coinRow,
 	})
 	TweenService:Create(pop, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Position = POP_TO,
@@ -296,6 +356,10 @@ local ZONE_PULSE = TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirectio
 local function watchPrompt(instance: Instance)
 	if instance:IsA("ProximityPrompt") and instance:GetAttribute("Kind") == "Pedestal" then
 		instance.Enabled = instance:GetAttribute("OwnerUserId") == player.UserId
+	elseif instance:IsA("BillboardGui") and instance.Name == "LaunchArrow" then
+		-- The arrow over the shooting spot bobs up and down.
+		local bob = TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(instance, bob, { StudsOffset = instance.StudsOffset + Vector3.new(0, 2, 0) }):Play()
 	elseif instance:IsA("BasePart") and instance.Name == "Zone" and instance:GetAttribute("Kind") ~= nil then
 		-- Shop circles glow brighter and dimmer, forever.
 		TweenService:Create(instance, ZONE_PULSE, { Transparency = 0.6 }):Play()

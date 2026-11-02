@@ -36,6 +36,14 @@ function Lane.isInHub(position: Vector3): boolean
 		and math.abs(position.Z) <= Lane.hubHalfWidthAt(position.X)
 end
 
+-- Whether a position is on the shooting spot at the hub's front edge, the only
+-- place the bow comes out and eggs can be shot from.
+function Lane.isOnLaunchSpot(position: Vector3): boolean
+	return position.X >= Config.Launch.SpotFromX
+		and position.X <= Config.Hub.MaxX + 1
+		and math.abs(position.Z) <= Config.Launch.SpotHalfWidth
+end
+
 -- X position of the near edge of a zone.
 function Lane.zoneStartX(index: number): number
 	return Config.Lane.StartX + (index - 1) * Config.Lane.ZoneLength

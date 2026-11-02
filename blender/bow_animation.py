@@ -1,11 +1,13 @@
-"""The bow draw and release animations, as Roblox KeyframeSequences.
+"""The bow shot animations, as Roblox KeyframeSequences.
 
 Run with plain Python (numpy):
 
     python3 blender/bow_animation.py
 
-It writes animations/BowDraw.rbxmx and animations/BowRelease.rbxmx, which Rojo
-syncs into ReplicatedStorage.BowAnimations. Upload them from Studio to get the
+It writes animations/BowShot1.rbxmx and animations/BowShot2.rbxmx (the whole
+draw and release, played after the tap; 70% / 30%) and
+src/shared/ShotAnimations.luau (their chances, timings and string curve).
+Rojo syncs the animations into ReplicatedStorage.BowAnimations. Upload them from Studio to get the
 animation ids (README: "Bow animations"). blender/bow_animation_preview.py
 renders a picture of the poses.
 
@@ -262,6 +264,13 @@ def solve(p, overrides=None):
     t = base_body(p)
     if "lean" in o:
         t["UpperTorso"] = t["UpperTorso"] * CF(rx(math.radians(o["lean"])))
+    crouch = o.get("crouch", 0)  # 0..1: sinks into a low, wide power stance
+    if crouch:
+        lt = t["LowerTorso"]
+        t["LowerTorso"] = CF(lt.R, lt.p + np.array([0, -0.55 * crouch, 0]))
+        for leg, knee, sign in (("RightUpperLeg", "RightLowerLeg", 1), ("LeftUpperLeg", "LeftLowerLeg", -1)):
+            t[leg] = t[leg] * CF(rx(math.radians(38 * crouch)) @ rz(math.radians(sign * 10 * crouch)))
+            t[knee] = t[knee] * CF(rx(math.radians(-62 * crouch)))
     world = forward_kinematics(t)
 
     look_head(t, world, tilt=lerp(4, 12, p))
@@ -379,6 +388,136 @@ def release_animation():
 
 
 # ---------------------------------------------------------------------------
+# The shots: the whole draw and release in one smooth 2-4 second animation,
+# played after you tap. The game picks one by Chance. "Release" marks the frame
+# the egg leaves (the game fires it at ReleaseAt, the same time); "Done" is
+# where it starts fading back to normal. Pull is the string's draw over time,
+# for the string itself (the game reads it from src/shared/ShotAnimations.luau,
+# which this script writes).
+# ---------------------------------------------------------------------------
+
+READY = {"hand_offset": (-0.6, -0.9, 0.4), "bow_drop": 28, "lean": -1, "hand_open": 20}
+RAISE = {"hand_offset": (-0.3, -0.25, 0.25), "bow_drop": 8, "hand_open": 12}
+
+
+def spun(transforms, degrees):
+    """The whole body turned about the up axis (for the follow-through spin)."""
+    t = dict(transforms)
+    t["LowerTorso"] = CF(ry(math.radians(degrees))) * t["LowerTorso"]
+    return t
+
+
+def merged(base, extra):
+    out = dict(base)
+    out.update(extra)
+    return out
+
+
+def shot_steady():
+    """The everyday shot (70%): lift the bow, nock, a slow smooth draw to the
+    cheek, a held breath with a tiny tremble, release, the bow kicks and the
+    string hand flies back, then settle."""
+    k = []
+    def key(time, p, o=None, style=CUBIC2, direction=EASE_INOUT, markers=()):
+        t, _ = solve(p, o)
+        k.append((time, t, style, direction, list(markers)))
+    key(0.00, 0.6, READY)
+    key(0.45, 0.6, RAISE)
+    key(0.70, 0.6, {"hand_open": 4})
+    key(1.10, 0.74, {"lean": 1})
+    key(1.50, 0.88, {"lean": 2})
+    key(1.85, 1.0, {"lean": 3}, direction=EASE_OUT)
+    key(2.10, 1.0, {"lean": 3.6, "bow_pitch": -1})
+    key(2.30, 1.0, {"lean": 3}, style=CUBIC2, direction=EASE_OUT, markers=["Release"])
+    key(2.35, 1.0, {"hand_offset": (-0.25, 0.25, 0.75), "bow_pitch": 16, "lean": 3, "hand_open": 50}, direction=EASE_OUT, markers=["Impact"])
+    key(2.48, 1.0, {"hand_offset": (-0.35, 0.3, 0.85), "bow_pitch": 10, "lean": 2, "hand_open": 60})
+    key(2.72, 0.9, {"hand_offset": (-0.4, -0.25, 0.7), "bow_pitch": -4, "bow_drop": 10, "lean": -2, "hand_open": 40}, markers=["Done"])
+    key(3.00, 0.6, READY, style=LINEAR, direction=EASE_IN)
+    pull = [(0.0, 0.0), (0.45, 0.0), (0.70, 0.6), (1.10, 0.74), (1.50, 0.88), (1.85, 1.0), (2.30, 1.0)]
+    return {
+        "name": "BowShot1", "loop": False, "priority": 3, "keys": k,
+        "chance": 70, "length": 3.0, "release_at": 2.30, "pull": pull, "spin": None,
+    }
+
+
+def shot_power():
+    """The rare shot (30%): a quick raise, then a big low power stance, a deep
+    lean back on a heavy draw, a long tense hold, a huge kick on the release,
+    and a full spin as the follow-through."""
+    k = []
+    def key(time, t, style=CUBIC2, direction=EASE_INOUT, markers=()):
+        k.append((time, t, style, direction, list(markers)))
+    def pose(p, o=None):
+        return solve(p, o)[0]
+    key(0.00, pose(0.6, READY))
+    key(0.35, pose(0.6, RAISE))
+    key(0.55, pose(0.6, {"hand_open": 4, "lean": -2}))
+    key(0.95, pose(0.8, {"lean": 3, "crouch": 0.4}))
+    key(1.35, pose(0.95, {"lean": 7, "crouch": 0.8}))
+    key(1.75, pose(1.0, {"lean": 10, "crouch": 1.0}), direction=EASE_OUT)
+    key(2.15, pose(1.0, {"lean": 11, "crouch": 1.0, "bow_pitch": -2}))
+    key(2.50, pose(1.0, {"lean": 10, "crouch": 1.0}), direction=EASE_OUT, markers=["Release"])
+    snap = pose(1.0, {"hand_offset": (-0.35, 0.35, 1.0), "bow_pitch": 24, "lean": 5, "crouch": 0.7, "hand_open": 60})
+    key(2.55, snap, direction=EASE_OUT, markers=["Impact"])
+    follow = pose(0.9, {"hand_offset": (-0.4, 0.1, 0.8), "bow_pitch": 6, "lean": 1, "crouch": 0.3, "hand_open": 50})
+    key(2.70, follow, style=LINEAR)
+    # The spin, a quarter turn at a time so each step blends the short way round.
+    key(2.82, spun(follow, 90), style=LINEAR)
+    key(2.94, spun(follow, 180), style=LINEAR)
+    key(3.06, spun(follow, 270), style=CUBIC2, direction=EASE_OUT)
+    settle = pose(0.85, {"hand_offset": (-0.45, -0.3, 0.7), "bow_drop": 12, "lean": -2, "hand_open": 40})
+    key(3.22, settle, markers=["Done"])
+    key(3.60, pose(0.6, READY), style=LINEAR, direction=EASE_IN)
+    pull = [(0.0, 0.0), (0.35, 0.0), (0.55, 0.6), (0.95, 0.8), (1.35, 0.95), (1.75, 1.0), (2.50, 1.0)]
+    return {
+        "name": "BowShot2", "loop": False, "priority": 3, "keys": k,
+        "chance": 30, "length": 3.6, "release_at": 2.50, "pull": pull, "spin": (2.70, 0.36),
+    }
+
+
+SHOTS = [shot_steady, shot_power]
+
+
+def write_shot_table(shots, path):
+    """src/shared/ShotAnimations.luau: what the game needs to know about each shot."""
+    lines = [
+        "--!strict",
+        "-- Made by blender/bow_animation.py: don't edit by hand, run the script.",
+        "-- The bow shots the game picks from after you tap. Chance is a percentage;",
+        "-- ReleaseAt is when the egg leaves (seconds into the animation); Pull is the",
+        "-- string's draw over time, as { time, amount }; Spin (if any) is when the",
+        "-- follow-through spin starts and how long it takes.",
+        "",
+        "export type Shot = {",
+        "	Name: string,",
+        "	Chance: number,",
+        "	Length: number,",
+        "	ReleaseAt: number,",
+        "	Pull: { { number } },",
+        "	Spin: { number }?,",
+        "}",
+        "",
+        "local ShotAnimations: { Shot } = {",
+    ]
+    for shot in shots:
+        pull = ", ".join("{ %s, %s }" % (fmt(t), fmt(p)) for t, p in shot["pull"])
+        spin = "nil" if not shot["spin"] else "{ %s, %s }" % (fmt(shot["spin"][0]), fmt(shot["spin"][1]))
+        lines += [
+            "	{",
+            f'		Name = "{shot["name"]}",',
+            f'		Chance = {fmt(shot["chance"])},',
+            f'		Length = {fmt(shot["length"])},',
+            f'		ReleaseAt = {fmt(shot["release_at"])},',
+            f"		Pull = {{ {pull} }},",
+            f"		Spin = {spin},",
+            "	},",
+        ]
+    lines += ["}", "", "return ShotAnimations", ""]
+    with open(path, "w") as f:
+        f.write("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 # .rbxmx writing
 # ---------------------------------------------------------------------------
 
@@ -461,10 +600,14 @@ def main():
     pull_back = (info["draw_length"] + NOCK_REST) / BOW_SCALE
     print(f"full draw: {info['draw_length']:.3f} studs behind the grip")
     print(f"SlingshotModel.luau: PULL_BACK = Vector3.new({-pull_back:.2f}, 0, 0), DRAW_START = {DRAW_START}")
-    for anim in (draw_animation(), release_animation()):
+    shots = [make() for make in SHOTS]
+    for anim in shots:
         path = os.path.join(OUT, anim["name"] + ".rbxmx")
         write_rbxmx(anim, path)
         print("wrote", os.path.relpath(path, ROOT))
+    table = os.path.join(ROOT, "src", "shared", "ShotAnimations.luau")
+    write_shot_table(shots, table)
+    print("wrote", os.path.relpath(table, ROOT))
 
 
 if __name__ == "__main__":

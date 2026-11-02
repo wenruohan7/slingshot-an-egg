@@ -63,8 +63,14 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	for _, product in Config.RobuxShop.Products do
-		if product.Id ~= 0 and product.Id == receipt.ProductId then
-			local coins = math.max(DataService.income(data, player) * product.IncomeSeconds, MIN_PACK_COINS)
+		-- Id3 is the "Buy 3" version of the same pack.
+		local id3 = (product :: any).Id3
+		local packs = if product.Id ~= 0 and product.Id == receipt.ProductId
+			then 1
+			elseif id3 and id3 ~= 0 and id3 == receipt.ProductId then 3
+			else 0
+		if packs > 0 then
+			local coins = math.max(DataService.income(data, player) * product.IncomeSeconds, MIN_PACK_COINS) * packs
 			data.Coins += coins
 			EconomyService.publish(player)
 			DataService.saveNow(player)

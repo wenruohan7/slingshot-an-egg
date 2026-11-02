@@ -3,7 +3,7 @@
 -- and the server works out the charge stage from its own timing, so a
 -- client can't just claim "Perfect". Then it flies the egg from the player's
 -- slingshot down the lane, reports which zone it landed in, and hatches it.
--- Players can launch from anywhere on the hub floor while holding the slingshot.
+-- Players shoot from the shooting spot at the hub's front edge (Lane.isOnLaunchSpot).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -16,6 +16,7 @@ local EggModel = require(Shared.EggModel)
 local Lane = require(Shared.Lane)
 local Pets = require(Shared.Pets)
 local Remotes = require(Shared.Remotes)
+local ShotAnimations = require(Shared.ShotAnimations)
 local SlingshotModel = require(Shared.SlingshotModel)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -40,8 +41,8 @@ local function setInFlight(player: Player, flying: boolean)
 	player:SetAttribute("EggInFlight", if flying then true else nil)
 end
 
--- The player's root part, if they are alive, holding the slingshot, standing in
--- the hub and their data has loaded.
+-- The player's root part, if they are alive, holding the bow, standing on the
+-- shooting spot and their data has loaded.
 local function launchingRoot(player: Player): BasePart?
 	local character = player.Character
 	local tool = character and character:FindFirstChild(SlingshotModel.NAME)
@@ -54,7 +55,7 @@ local function launchingRoot(player: Player): BasePart?
 		and humanoid.Health > 0
 		and root
 		and root:IsA("BasePart")
-		and Lane.isInHub(root.Position)
+		and Lane.isOnLaunchSpot(root.Position)
 		and DataService.get(player)
 	then
 		return root
@@ -152,7 +153,26 @@ local function onChargeStart(player: Player)
 	showCharge(player, true)
 end
 
-local function onChargeRelease(player: Player)
+-- Stepping out of a draw (jumping off the shooting spot): no shot.
+local function onChargeCancel(player: Player)
+	chargeStarted[player] = nil
+	local character = player.Character
+	if character then
+		character:SetAttribute("ChargeStartedAt", nil)
+	end
+end
+
+local shotsByName: { [string]: ShotAnimations.Shot } = {}
+for _, shot in ShotAnimations do
+	shotsByName[shot.Name] = shot
+end
+
+local fire: (Player, BasePart, Charge.Stage) -> ()
+
+-- The tap: the stage is decided now (from the server's own timing), then the
+-- shot animation plays (the client picked which one; it's only for looks) and
+-- the egg leaves at its ReleaseAt, a little later on a Perfect's freeze.
+local function onChargeRelease(player: Player, shotName: unknown)
 	local started = chargeStarted[player]
 	chargeStarted[player] = nil
 	showCharge(player, false)
@@ -166,6 +186,34 @@ local function onChargeRelease(player: Player)
 	end
 
 	local stage = Charge.stageFor(Charge.valueAt(os.clock() - started))
+	local shot = (typeof(shotName) == "string" and shotsByName[shotName]) or ShotAnimations[1]
+	setInFlight(player, true) -- no new charge from the tap until the egg is cleared away
+	local character = root.Parent :: Model
+	character:SetAttribute("ShotName", shot.Name)
+	character:SetAttribute("ShotStartedAt", workspace:GetServerTimeNow())
+	local delay = shot.ReleaseAt + (if stage == Config.Charge.Stages[1] then Config.Charge.PerfectFreeze else 0)
+	task.delay(delay, function()
+		local alive = root.Parent ~= nil and player.Parent == Players
+		if not alive then
+			setInFlight(player, false)
+			return
+		end
+		local ok, err = pcall(fire, player, root, stage)
+		if not ok then
+			warn(`[LaunchService] shot failed for {player.Name}: {err}`)
+			setInFlight(player, false)
+		end
+	end)
+	task.delay(shot.Length + 0.2, function()
+		if character:GetAttribute("ShotStartedAt") ~= nil then
+			character:SetAttribute("ShotName", nil)
+			character:SetAttribute("ShotStartedAt", nil)
+		end
+	end)
+end
+
+-- Flies the egg from the bow down the lane and hatches it where it lands.
+function fire(player: Player, root: BasePart, stage: Charge.Stage)
 	local distance = math.min(LaunchService.launchPower(player) * stage.Power, Lane.Length - 1)
 	local zoneIndex = Lane.zoneAt(distance)
 
@@ -222,12 +270,12 @@ local function onChargeRelease(player: Player)
 
 			-- The server decides the pet now; the client plays the crack and reveal
 			-- while the egg sits on the lane.
-			local pet, merged, kept, isNew = HatchService.hatch(player, distance)
+			local pet, merged, kept, isNew, odds = HatchService.hatch(player, distance)
 			local notable = pet ~= nil and Pets.isNotable(pet)
 			if pet then
-				Remotes.EggHatched:FireClient(player, egg, pet, merged, kept, isNew)
+				Remotes.EggHatched:FireClient(player, egg, pet, merged, kept, isNew, odds)
 				if notable then
-					Remotes.BigHatch:FireAllClients(player.DisplayName, to, pet)
+					Remotes.BigHatch:FireAllClients(player.DisplayName, to, pet, player.UserId)
 				end
 				if not kept then
 					EconomyService.notify(player, "Your pets are full! Only pets better than your weakest are kept.", "error")
@@ -256,6 +304,7 @@ end
 function LaunchService.init()
 	Remotes.ChargeStart.OnServerEvent:Connect(onChargeStart)
 	Remotes.ChargeRelease.OnServerEvent:Connect(onChargeRelease)
+	Remotes.ChargeCancel.OnServerEvent:Connect(onChargeCancel)
 	Players.PlayerRemoving:Connect(function(player)
 		chargeStarted[player] = nil
 		inFlight[player] = nil
